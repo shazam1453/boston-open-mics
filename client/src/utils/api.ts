@@ -16,6 +16,21 @@ api.interceptors.request.use((config) => {
   return config
 })
 
+// Add response interceptor to handle errors
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    // Log API errors for debugging
+    console.error('API Error:', {
+      url: error.config?.url,
+      method: error.config?.method,
+      status: error.response?.status,
+      data: error.response?.data
+    })
+    return Promise.reject(error)
+  }
+)
+
 // Auth API
 export const authAPI = {
   login: (email: string, password: string) =>
@@ -57,7 +72,7 @@ export const eventsAPI = {
   getAll: (filters?: { date?: string; eventType?: string; venueId?: number }) =>
     api.get<Event[]>('/events', { params: filters }),
   
-  getById: (id: number) => api.get<Event>(`/events/${id}`),
+  getById: (id: string | number) => api.get<Event>(`/events/${id}`),
   
   create: (eventData: {
     title: string
@@ -150,7 +165,7 @@ export const signupsAPI = {
   
   getMySignups: () => api.get<Signup[]>('/signups/my-signups'),
   
-  getByEvent: (eventId: number) => api.get<Signup[]>(`/signups/event/${eventId}`),
+  getByEvent: (eventId: string | number) => api.get<Signup[]>(`/signups/event/${eventId}`),
   
   cancel: (eventId: number) => api.delete(`/signups/event/${eventId}`),
   
