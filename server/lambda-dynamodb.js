@@ -4,6 +4,7 @@ const crypto = require('crypto');
 // Use AWS SDK from Lambda runtime environment (no bundling needed)
 const AWS = require('aws-sdk');
 const dynamodb = new AWS.DynamoDB.DocumentClient();
+const ses = new AWS.SES({ region: process.env.SES_REGION || 'us-east-2' });
 
 // Table names from environment variables
 const USERS_TABLE = process.env.USERS_TABLE;
@@ -14,6 +15,43 @@ const SIGNUPS_TABLE = process.env.SIGNUPS_TABLE;
 // Active tokens (in memory - in production, use Redis or DynamoDB)
 const activeTokens = global.activeTokens || {};
 global.activeTokens = activeTokens;
+
+// Email helper function
+const sendEmail = async (to, subject, htmlBody, textBody) => {
+  const fromEmail = process.env.SES_FROM_EMAIL || 'noreply@bostonopenmic.com';
+  
+  const params = {
+    Source: fromEmail,
+    Destination: {
+      ToAddresses: [to]
+    },
+    Message: {
+      Subject: {
+        Data: subject,
+        Charset: 'UTF-8'
+      },
+      Body: {
+        Html: {
+          Data: htmlBody,
+          Charset: 'UTF-8'
+        },
+        Text: {
+          Data: textBody,
+          Charset: 'UTF-8'
+        }
+      }
+    }
+  };
+
+  try {
+    const result = await ses.sendEmail(params).promise();
+    console.log('✅ Email sent successfully:', result.MessageId);
+    return { success: true, messageId: result.MessageId };
+  } catch (error) {
+    console.error('❌ Failed to send email:', error);
+    return { success: false, error: error.message };
+  }
+};
 
 exports.handler = async (event, context) => {
   console.log('Event:', JSON.stringify(event, null, 2));
@@ -1348,13 +1386,126 @@ exports.handler = async (event, context) => {
         };
       }
       
-      // Log invitation (in production, would send actual email)
-      console.log('📧 Invitation Email Would Be Sent:');
+      // Create email content based on invitation type
+      let subject, htmlBody, textBody;
+      
+      if (type === 'event_invitation') {
+        subject = `🎤 You're Invited to Perform at Boston Open Mic!`;
+        htmlBody = `
+          <html>
+            <body style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+              <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 30px; text-align: center;">
+                <h1 style="margin: 0; font-size: 28px;">🎤 Boston Open Mics</h1>
+                <p style="margin: 10px 0 0 0; font-size: 16px;">You're Invited to Perform!</p>
+              </div>
+              
+              <div style="padding: 30px; background: #f9f9f9;">
+                <h2 style="color: #333; margin-top: 0;">Hi there!</h2>
+                <p style="color: #666; line-height: 1.6; font-size: 16px;">
+                  <strong>${inviterName}</strong> has invited you to perform at an upcoming open mic event!
+                </p>
+                
+                <div style="background: white; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #667eea;">
+                  <p style="margin: 0; color: #333; font-style: italic;">"${message}"</p>
+                </div>
+                
+                <p style="color: #666; line-height: 1.6;">
+                  Boston Open Mics is the premier platform for discovering and participating in open mic events 
+                  throughout the Boston area. Join our community of talented performers!
+                </p>
+                
+                <div style="text-align: center; margin: 30px 0;">
+                  <a href="https://boston-mic-list.netlify.app/register" 
+                     style="background: #667eea; color: white; padding: 15px 30px; text-decoration: none; 
+                            border-radius: 5px; font-weight: bold; display: inline-block;">
+                    Join Boston Open Mics
+                  </a>
+                </div>
+                
+                <p style="color: #999; font-size: 14px; text-align: center; margin-top: 30px;">
+                  Questions? Reply to this email or contact ${inviterName} at ${inviterEmail}
+                </p>
+              </div>
+              
+              <div style="background: #333; color: #999; padding: 20px; text-align: center; font-size: 12px;">
+                <p style="margin: 0;">© 2025 Boston Open Mics. Connecting performers across Boston.</p>
+              </div>
+            </body>
+          </html>
+        `;
+        textBody = `
+🎤 Boston Open Mics - You're Invited to Perform!
+
+Hi there!
+
+${inviterName} has invited you to perform at an upcoming open mic event!
+
+"${message}"
+
+Boston Open Mics is the premier platform for discovering and participating in open mic events throughout the Boston area. Join our community of talented performers!
+
+Join us at: https://boston-mic-list.netlify.app/register
+
+Questions? Reply to this email or contact ${inviterName} at ${inviterEmail}
+
+© 2025 Boston Open Mics. Connecting performers across Boston.
+        `;
+      } else {
+        // Generic invitation
+        subject = `Invitation from ${inviterName} - Boston Open Mics`;
+        htmlBody = `
+          <html>
+            <body style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+              <div style="background: #667eea; color: white; padding: 20px; text-align: center;">
+                <h1 style="margin: 0;">🎤 Boston Open Mics</h1>
+              </div>
+              <div style="padding: 30px;">
+                <h2>Hi there!</h2>
+                <p><strong>${inviterName}</strong> has sent you an invitation:</p>
+                <blockquote style="border-left: 4px solid #667eea; padding-left: 20px; margin: 20px 0; font-style: italic;">
+                  ${message}
+                </blockquote>
+                <p>Visit Boston Open Mics to learn more: <a href="https://boston-mic-list.netlify.app">https://boston-mic-list.netlify.app</a></p>
+                <p style="color: #666; font-size: 14px;">Questions? Contact ${inviterName} at ${inviterEmail}</p>
+              </div>
+            </body>
+          </html>
+        `;
+        textBody = `
+Boston Open Mics - Invitation from ${inviterName}
+
+Hi there!
+
+${inviterName} has sent you an invitation:
+
+"${message}"
+
+Visit Boston Open Mics to learn more: https://boston-mic-list.netlify.app
+
+Questions? Contact ${inviterName} at ${inviterEmail}
+        `;
+      }
+      
+      // Send the email using AWS SES
+      const emailResult = await sendEmail(email, subject, htmlBody, textBody);
+      
+      if (!emailResult.success) {
+        return {
+          statusCode: 500,
+          headers: corsHeaders,
+          body: JSON.stringify({
+            message: 'Failed to send invitation email',
+            error: emailResult.error
+          })
+        };
+      }
+      
+      // Log successful invitation
+      console.log('✅ Invitation email sent successfully:');
       console.log(`To: ${email}`);
       console.log(`From: ${inviterName} (${inviterEmail})`);
       console.log(`Type: ${type}`);
-      console.log(`Message: ${message}`);
-      console.log('---');
+      console.log(`Message ID: ${emailResult.messageId}`);
       
       return {
         statusCode: 200,
@@ -1363,6 +1514,7 @@ exports.handler = async (event, context) => {
           message: 'Invitation sent successfully',
           email,
           type,
+          messageId: emailResult.messageId,
           sentAt: new Date().toISOString()
         })
       };

@@ -14,6 +14,8 @@ provider:
     VENUES_TABLE: ${self:service}-${opt:stage, self:provider.stage}-venues
     EVENTS_TABLE: ${self:service}-${opt:stage, self:provider.stage}-events
     SIGNUPS_TABLE: ${self:service}-${opt:stage, self:provider.stage}-signups
+    SES_FROM_EMAIL: ${env:SES_FROM_EMAIL, 'noreply@bostonopenmic.com'}
+    SES_REGION: ${opt:region, self:provider.region}
   
   # IAM role permissions
   iam:
@@ -41,6 +43,11 @@ provider:
             - "arn:aws:dynamodb:${opt:region, self:provider.region}:*:table/${self:provider.environment.USERS_TABLE}/index/*"
             - "arn:aws:dynamodb:${opt:region, self:provider.region}:*:table/${self:provider.environment.EVENTS_TABLE}/index/*"
             - "arn:aws:dynamodb:${opt:region, self:provider.region}:*:table/${self:provider.environment.SIGNUPS_TABLE}/index/*"
+        - Effect: Allow
+          Action:
+            - ses:SendEmail
+            - ses:SendRawEmail
+          Resource: "*"
 
 functions:
   api:
