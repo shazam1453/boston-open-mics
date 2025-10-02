@@ -71,7 +71,7 @@ export default function Admin() {
     }
   }
 
-  const deleteUser = async (userId: number) => {
+  const deleteUser = async (userId: string | number) => {
     if (!confirm('Are you sure you want to delete this user? This action cannot be undone.')) {
       return
     }
@@ -85,7 +85,7 @@ export default function Admin() {
     }
   }
 
-  const deleteEvent = async (eventId: number) => {
+  const deleteEvent = async (eventId: string | number) => {
     if (!confirm('Are you sure you want to delete this event? This action cannot be undone.')) {
       return
     }
@@ -99,7 +99,7 @@ export default function Admin() {
     }
   }
 
-  const deleteVenue = async (venueId: number) => {
+  const deleteVenue = async (venueId: string | number) => {
     if (!confirm('Are you sure you want to delete this venue? This will also delete all related events. This action cannot be undone.')) {
       return
     }
@@ -115,7 +115,7 @@ export default function Admin() {
     }
   }
 
-  const updateUserRole = async (userId: number, newRole: string) => {
+  const updateUserRole = async (userId: string | number, newRole: string) => {
     if (!confirm(`Are you sure you want to change this user's role to ${newRole}?`)) {
       return
     }

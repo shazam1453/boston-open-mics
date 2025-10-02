@@ -59,17 +59,17 @@ export const usersAPI = {
 // Admin API
 export const adminAPI = {
   getAllUsers: () => api.get<User[]>('/admin/users'),
-  deleteUser: (userId: number) => api.delete(`/admin/users/${userId}`),
+  deleteUser: (userId: string | number) => api.delete(`/admin/users/${userId}`),
   getAllEvents: () => api.get<Event[]>('/admin/events'),
-  deleteEvent: (eventId: number) => api.delete(`/admin/events/${eventId}`),
+  deleteEvent: (eventId: string | number) => api.delete(`/admin/events/${eventId}`),
   getAllVenues: () => api.get<Venue[]>('/admin/venues'),
-  deleteVenue: (venueId: number) => api.delete(`/admin/venues/${venueId}`),
-  updateUserRole: (userId: number, role: string) => api.put<{ user: User }>(`/admin/users/${userId}/role`, { role }),
+  deleteVenue: (venueId: string | number) => api.delete(`/admin/venues/${venueId}`),
+  updateUserRole: (userId: string | number, role: string) => api.put<{ user: User }>(`/admin/users/${userId}/role`, { role }),
 }
 
 // Events API
 export const eventsAPI = {
-  getAll: (filters?: { date?: string; eventType?: string; venueId?: number }) =>
+  getAll: (filters?: { date?: string; eventType?: string; venueId?: string | number }) =>
     api.get<Event[]>('/events', { params: filters }),
   
   getById: (id: string | number) => api.get<Event>(`/events/${id}`),
@@ -77,7 +77,7 @@ export const eventsAPI = {
   create: (eventData: {
     title: string
     description?: string
-    venueId: number
+    venueId: string | number
     date: string
     startTime: string
     endTime: string
@@ -89,44 +89,44 @@ export const eventsAPI = {
     signupDeadline?: string
   }) => api.post<{ event: Event }>('/events', eventData),
   
-  update: (id: number, updates: Partial<Event>) =>
+  update: (id: string | number, updates: Partial<Event>) =>
     api.put<{ event: Event }>(`/events/${id}`, updates),
   
-  delete: (id: number) => api.delete(`/events/${id}`),
+  delete: (id: string | number) => api.delete(`/events/${id}`),
   
-  getByHost: (hostId: number) => api.get<Event[]>(`/events/host/${hostId}`),
+  getByHost: (hostId: string | number) => api.get<Event[]>(`/events/host/${hostId}`),
   
-  startEvent: (id: number) => api.post<{ event: Event }>(`/events/${id}/start`),
+  startEvent: (id: string | number) => api.post<{ event: Event }>(`/events/${id}/start`),
   
-  finishEvent: (id: number) => api.post<{ event: Event }>(`/events/${id}/finish`),
+  finishEvent: (id: string | number) => api.post<{ event: Event }>(`/events/${id}/finish`),
   
-  setCurrentPerformer: (eventId: number, signupId: number) => 
+  setCurrentPerformer: (eventId: string | number, signupId: string | number) => 
     api.post<{ event: Event }>(`/events/${eventId}/set-current-performer`, { signupId }),
   
-  randomizeOrder: (eventId: number) => 
+  randomizeOrder: (eventId: string | number) => 
     api.post<{ signups: Signup[] }>(`/events/${eventId}/randomize-order`),
   
-  addCohost: (eventId: number, userId: number) =>
+  addCohost: (eventId: string | number, userId: string | number) =>
     api.post<{ event: Event }>(`/events/${eventId}/cohosts`, { userId }),
   
-  removeCohost: (eventId: number, cohostId: number) =>
+  removeCohost: (eventId: string | number, cohostId: string | number) =>
     api.delete<{ event: Event }>(`/events/${eventId}/cohosts/${cohostId}`),
   
   // Invite management
-  sendInvite: (eventId: number, userId: number) =>
+  sendInvite: (eventId: string | number, userId: string | number) =>
     api.post<{ invite: Invite }>(`/events/${eventId}/invites`, { userId }),
   
-  getEventInvites: (eventId: number) =>
+  getEventInvites: (eventId: string | number) =>
     api.get<Invite[]>(`/events/${eventId}/invites`),
   
-  respondToInvite: (inviteId: number, response: 'accepted' | 'declined', performanceData?: { performanceName: string; notes?: string }) =>
+  respondToInvite: (inviteId: string | number, response: 'accepted' | 'declined', performanceData?: { performanceName: string; notes?: string }) =>
     api.put<{ invite: Invite }>(`/invites/${inviteId}/respond`, { response, ...performanceData }),
   
   // Booked mic management
-  updatePerformerOrder: (eventId: number, performerOrder: { signupId: number; order: number; performanceLength?: number }[]) =>
+  updatePerformerOrder: (eventId: string | number, performerOrder: { signupId: string | number; order: number; performanceLength?: number }[]) =>
     api.put<{ signups: Signup[] }>(`/events/${eventId}/performer-order`, { performerOrder }),
   
-  updatePerformerLength: (signupId: number, performanceLength: number) =>
+  updatePerformerLength: (signupId: string | number, performanceLength: number) =>
     api.put<{ signup: Signup }>(`/signups/${signupId}/performance-length`, { performanceLength }),
 }
 
@@ -134,9 +134,9 @@ export const eventsAPI = {
 export const venuesAPI = {
   getAll: () => api.get<Venue[]>('/venues'),
   
-  getById: (id: number) => api.get<Venue>(`/venues/${id}`),
+  getById: (id: string | number) => api.get<Venue>(`/venues/${id}`),
   
-  getByOwner: (ownerId: number) => api.get<Venue[]>(`/venues/owner/${ownerId}`),
+  getByOwner: (ownerId: string | number) => api.get<Venue[]>(`/venues/owner/${ownerId}`),
   
   create: (venueData: {
     name: string
@@ -148,16 +148,16 @@ export const venuesAPI = {
     amenities?: string[]
   }) => api.post<{ venue: Venue }>('/venues', venueData),
   
-  update: (id: number, updates: Partial<Venue>) =>
+  update: (id: string | number, updates: Partial<Venue>) =>
     api.put<{ venue: Venue }>(`/venues/${id}`, updates),
   
-  delete: (id: number) => api.delete(`/venues/${id}`),
+  delete: (id: string | number) => api.delete(`/venues/${id}`),
 }
 
 // Signups API
 export const signupsAPI = {
   create: (signupData: {
-    eventId: number
+    eventId: string | number
     performanceName: string
     notes?: string
     performanceType: string
@@ -167,18 +167,18 @@ export const signupsAPI = {
   
   getByEvent: (eventId: string | number) => api.get<Signup[]>(`/signups/event/${eventId}`),
   
-  cancel: (eventId: number) => api.delete(`/signups/event/${eventId}`),
+  cancel: (eventId: string | number) => api.delete(`/signups/event/${eventId}`),
   
-  updatePerformerOrder: (eventId: number, signupIds: number[]) =>
+  updatePerformerOrder: (eventId: string | number, signupIds: (string | number)[]) =>
     api.put<{ signups: Signup[] }>(`/signups/event/${eventId}/order`, { signupIds }),
   
-  markAsFinished: (signupId: number) =>
+  markAsFinished: (signupId: string | number) =>
     api.put<{ signup: Signup }>(`/signups/${signupId}/finish`),
   
-  unmarkAsFinished: (signupId: number) =>
+  unmarkAsFinished: (signupId: string | number) =>
     api.put<{ signup: Signup }>(`/signups/${signupId}/unfinish`),
   
-  addManualPerformer: (eventId: number, performerData: {
+  addManualPerformer: (eventId: string | number, performerData: {
     performanceName: string
     performerName: string
     performanceType: string

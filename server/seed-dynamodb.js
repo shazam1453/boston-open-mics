@@ -52,7 +52,7 @@ const seedData = async () => {
         phone: '555-0124',
         performer_type: 'comedian',
         bio: 'Stand-up comedian and event host',
-        role: 'admin',
+        role: 'super_admin',
         instagram_handle: 'janesmith_comedy',
         twitter_handle: 'janesmith',
         tiktok_handle: 'janesmith_comedy',

@@ -20,7 +20,7 @@ export default function Profile() {
   const [showRecurringForm, setShowRecurringForm] = useState(false)
   const [showEditEventForm, setShowEditEventForm] = useState(false)
   const [showEditProfileForm, setShowEditProfileForm] = useState(false)
-  const [, setSelectedVenue] = useState<number | null>(null)
+  const [, setSelectedVenue] = useState<string | number | null>(null)
   const [editingEvent, setEditingEvent] = useState<Event | null>(null)
 
   // Debug effect to monitor state changes
@@ -133,7 +133,7 @@ export default function Profile() {
     }
   }
 
-  const removeCohost = (cohostId: number) => {
+  const removeCohost = (cohostId: string | number) => {
     setSelectedCohosts(prev => prev.filter(c => c.id !== cohostId))
   }
   const [submitting, setSubmitting] = useState(false)
@@ -568,7 +568,7 @@ export default function Profile() {
     }
   }
 
-  const handleDeleteEvent = async (eventId: number) => {
+  const handleDeleteEvent = async (eventId: string | number) => {
     if (!confirm('Are you sure you want to delete this event? This action cannot be undone.')) {
       return
     }

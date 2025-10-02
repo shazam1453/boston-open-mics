@@ -1,5 +1,5 @@
 export interface User {
-  id: number
+  id: string | number
   email: string
   name: string
   phone?: string
@@ -15,7 +15,7 @@ export interface User {
 }
 
 export interface Venue {
-  id: number
+  id: string | number
   name: string
   address: string
   phone?: string
@@ -23,26 +23,26 @@ export interface Venue {
   description?: string
   capacity?: number
   amenities: string[]
-  owner_id: number
+  owner_id: string | number
   owner_name?: string
   created_at: string
 }
 
 export interface EventCohost {
-  id: number
-  event_id: number
-  user_id: number
+  id: string | number
+  event_id: string | number
+  user_id: string | number
   user_name: string
   user_email: string
-  added_by: number
+  added_by: string | number
   created_at: string
 }
 
 export interface Event {
-  id: number
+  id: string | number
   title: string
   description?: string
-  venue_id: number
+  venue_id: string | number
   venue_name?: string
   venue_address?: string
   date: string
@@ -53,22 +53,22 @@ export interface Event {
   event_type: 'open-mic' | 'showcase' | 'competition' | 'workshop'
   signup_opens?: string
   signup_deadline?: string
-  host_id: number
+  host_id: string | number
   host_name?: string
   current_signups: number
   event_status: 'scheduled' | 'live' | 'finished'
   signup_list_mode: 'signup_order' | 'random_order' | 'bucket' | 'booked_mic'
-  current_performer_id?: number
+  current_performer_id?: string | number
   started_at?: string
-  recurring_template_id?: number
+  recurring_template_id?: string | number
   cohosts?: EventCohost[]
   created_at: string
 }
 
 export interface Signup {
-  id: number
-  event_id: number
-  user_id: number
+  id: string | number
+  event_id: string | number
+  user_id: string | number
   performance_name: string
   notes?: string
   performance_type: 'music' | 'comedy' | 'poetry' | 'storytelling' | 'other'

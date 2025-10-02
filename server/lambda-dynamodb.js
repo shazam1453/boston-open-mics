@@ -96,7 +96,8 @@ exports.handler = async (event, context) => {
               'POST /api/auth/register',
               'GET /api/auth/profile',
               'GET /api/auth/me',
-              'PUT /api/auth/profile'
+              'PUT /api/auth/profile',
+              'DELETE /api/auth/delete-account'
             ],
             events: [
               'GET /api/events',
@@ -286,6 +287,58 @@ exports.handler = async (event, context) => {
         headers: corsHeaders,
         body: JSON.stringify({ user: userResponse })
       };
+    }
+    
+    // Delete own account endpoint
+    if (path === '/api/auth/delete-account' && httpMethod === 'DELETE') {
+      const user = authenticate();
+      if (!user) {
+        return {
+          statusCode: 401,
+          headers: corsHeaders,
+          body: JSON.stringify({ message: 'Unauthorized' })
+        };
+      }
+      
+      // Only super admins can delete their own accounts
+      if (user.role !== 'super_admin') {
+        return {
+          statusCode: 403,
+          headers: corsHeaders,
+          body: JSON.stringify({ message: 'Only super admins can delete their own accounts' })
+        };
+      }
+      
+      try {
+        // Delete the user from DynamoDB
+        await dynamodb.delete({
+          TableName: USERS_TABLE,
+          Key: { id: user.id }
+        }).promise();
+        
+        // Remove all active tokens for this user
+        Object.keys(activeTokens).forEach(token => {
+          if (activeTokens[token].id === user.id) {
+            delete activeTokens[token];
+          }
+        });
+        
+        return {
+          statusCode: 200,
+          headers: corsHeaders,
+          body: JSON.stringify({ 
+            message: 'Account deleted successfully',
+            deletedAt: new Date().toISOString()
+          })
+        };
+      } catch (error) {
+        console.error('Error deleting account:', error);
+        return {
+          statusCode: 500,
+          headers: corsHeaders,
+          body: JSON.stringify({ message: 'Failed to delete account' })
+        };
+      }
     }
     
     // Events endpoints

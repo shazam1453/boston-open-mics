@@ -13,7 +13,7 @@ export default function Events() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [activeTab, setActiveTab] = useState<'all' | 'hosting' | 'performances'>('all')
-  const [showSignupForm, setShowSignupForm] = useState<number | null>(null)
+  const [showSignupForm, setShowSignupForm] = useState<string | number | null>(null)
   const [submitting, setSubmitting] = useState(false)
   const [signupForm, setSignupForm] = useState({
     performerName: '',
@@ -33,7 +33,7 @@ export default function Events() {
 
   const filterRecurringEvents = (events: Event[]) => {
     const now = new Date()
-    const recurringGroups = new Map<number, Event[]>()
+    const recurringGroups = new Map<string | number, Event[]>()
     const oneTimeEvents: Event[] = []
     
     // Group events by recurring template ID
@@ -101,7 +101,7 @@ export default function Events() {
     fetchData()
   }, [user])
 
-  const handleQuickSignup = async (eventId: number) => {
+  const handleQuickSignup = async (eventId: string | number) => {
     if (!user) return
     
     setSubmitting(true)

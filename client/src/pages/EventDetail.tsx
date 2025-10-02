@@ -100,7 +100,7 @@ export default function EventDetail() {
     }
   }
 
-  const handleMarkFinished = async (signupId: number) => {
+  const handleMarkFinished = async (signupId: string | number) => {
     setSubmitting(true)
     try {
       const response = await signupsAPI.markAsFinished(signupId)
@@ -115,7 +115,7 @@ export default function EventDetail() {
     }
   }
 
-  const handleUnmarkFinished = async (signupId: number) => {
+  const handleUnmarkFinished = async (signupId: string | number) => {
     setSubmitting(true)
     try {
       await signupsAPI.unmarkAsFinished(signupId)
@@ -292,9 +292,9 @@ export default function EventDetail() {
   }
 
   // Booked mic management functions
-  const [draggedSignupId, setDraggedSignupId] = useState<number | null>(null)
+  const [draggedSignupId, setDraggedSignupId] = useState<string | number | null>(null)
 
-  const handleDragStart = (e: React.DragEvent, signupId: number) => {
+  const handleDragStart = (e: React.DragEvent, signupId: string | number) => {
     setDraggedSignupId(signupId)
     e.dataTransfer.effectAllowed = 'move'
   }
@@ -330,7 +330,7 @@ export default function EventDetail() {
     setDraggedSignupId(null)
   }
 
-  const handleUpdatePerformerLength = async (signupId: number, length: number) => {
+  const handleUpdatePerformerLength = async (signupId: string | number, length: number) => {
     if (!event || !isHost) return
 
     try {
