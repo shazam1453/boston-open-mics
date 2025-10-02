@@ -44,7 +44,7 @@ provider:
 
 functions:
   api:
-    handler: lambda-dynamodb.handler
+    handler: lambda-simple.handler
     events:
       - http:
           path: /
@@ -185,15 +185,9 @@ resources:
 
 # Package configuration
 package:
-  exclude:
-    - node_modules/**
-    - .git/**
-    - .gitignore
-    - README.md
-    - test-data/**
-    - "*.md"
-  include:
-    - lambda-dynamodb.js
-    - package.json
-    - node_modules/uuid/**
-    - node_modules/aws-sdk/**
+  patterns:
+    - '!node_modules/**'
+    - '!.git/**'
+    - '!README.md'
+    - '!test-data/**'
+    - '!*.md'

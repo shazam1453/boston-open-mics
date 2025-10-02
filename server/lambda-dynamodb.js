@@ -1,9 +1,11 @@
-const AWS = require('aws-sdk');
 const { v4: uuidv4 } = require('uuid');
 const crypto = require('crypto');
 
-// Initialize DynamoDB
-const dynamodb = new AWS.DynamoDB.DocumentClient();
+// Initialize DynamoDB using AWS SDK v2 (available in Lambda runtime)
+const AWS = require('aws-sdk');
+const dynamodb = new AWS.DynamoDB.DocumentClient({
+  region: process.env.AWS_REGION || 'us-east-2'
+});
 
 // Table names from environment variables
 const USERS_TABLE = process.env.USERS_TABLE;
