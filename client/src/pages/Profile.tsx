@@ -5,6 +5,7 @@ import { authAPI, venuesAPI, eventsAPI, signupsAPI, usersAPI, recurringEventsAPI
 import api from '../utils/api'
 import { formatTime12Hour, formatDate } from '../utils/dateTime'
 import TimePicker from '../components/TimePicker'
+import ChangePassword from '../components/ChangePassword'
 import { EVENT_TYPES, SIGNUP_LIST_MODES, PERFORMER_TYPES, DAYS_OF_WEEK } from '../constants/formOptions'
 import type { Venue, Event, Signup, User } from '../types'
 
@@ -20,6 +21,7 @@ export default function Profile() {
   const [showRecurringForm, setShowRecurringForm] = useState(false)
   const [showEditEventForm, setShowEditEventForm] = useState(false)
   const [showEditProfileForm, setShowEditProfileForm] = useState(false)
+  const [showChangePassword, setShowChangePassword] = useState(false)
   const [, setSelectedVenue] = useState<string | number | null>(null)
   const [editingEvent, setEditingEvent] = useState<Event | null>(null)
 
@@ -741,12 +743,18 @@ export default function Profile() {
             )}
           </div>
           
-          <div className="mt-6">
+          <div className="mt-6 flex gap-3">
             <button 
               onClick={() => setShowEditProfileForm(true)}
               className="btn btn-primary"
             >
               Edit Profile
+            </button>
+            <button 
+              onClick={() => setShowChangePassword(true)}
+              className="btn bg-gray-600 text-white hover:bg-gray-700"
+            >
+              Change Password
             </button>
           </div>
         </div>
@@ -2492,6 +2500,19 @@ export default function Profile() {
             </form>
           </div>
         </div>
+      )}
+      
+      {showChangePassword && (
+        <ChangePassword
+          onClose={() => setShowChangePassword(false)}
+          onSuccess={() => {
+            setShowChangePassword(false)
+            alert('Password changed successfully! Please log in again.')
+            // Note: In a real app, you'd want to handle logout more gracefully
+            localStorage.removeItem('token')
+            window.location.href = '/login'
+          }}
+        />
       )}
     </div>
   )

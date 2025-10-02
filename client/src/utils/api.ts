@@ -49,6 +49,16 @@ export const authAPI = {
   
   updateProfile: (updates: Partial<User>) =>
     api.put<{ user: User }>('/auth/profile', updates),
+  
+  changePassword: (passwordData: {
+    currentPassword: string
+    newPassword: string
+  }) => api.put<{ message: string }>('/auth/change-password', passwordData),
+  
+  resetPassword: (resetData: {
+    email: string
+    newPassword: string
+  }) => api.post<{ message: string }>('/auth/reset-password', resetData),
 }
 
 // Users API

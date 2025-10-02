@@ -135,6 +135,8 @@ exports.handler = async (event, context) => {
               'GET /api/auth/profile',
               'GET /api/auth/me',
               'PUT /api/auth/profile',
+              'PUT /api/auth/change-password',
+              'POST /api/auth/reset-password',
               'DELETE /api/auth/delete-account'
             ],
             events: [
@@ -325,6 +327,183 @@ exports.handler = async (event, context) => {
         headers: corsHeaders,
         body: JSON.stringify({ user: userResponse })
       };
+    }
+    
+    // Change password endpoint (for logged-in users)
+    if (path === '/api/auth/change-password' && httpMethod === 'PUT') {
+      const user = authenticate();
+      if (!user) {
+        return {
+          statusCode: 401,
+          headers: corsHeaders,
+          body: JSON.stringify({ message: 'Unauthorized' })
+        };
+      }
+      
+      const { currentPassword, newPassword } = requestBody;
+      
+      if (!currentPassword || !newPassword) {
+        return {
+          statusCode: 400,
+          headers: corsHeaders,
+          body: JSON.stringify({ message: 'Current password and new password are required' })
+        };
+      }
+      
+      if (newPassword.length < 6) {
+        return {
+          statusCode: 400,
+          headers: corsHeaders,
+          body: JSON.stringify({ message: 'New password must be at least 6 characters long' })
+        };
+      }
+      
+      try {
+        // Get current user from database to verify current password
+        const userResult = await dynamodb.get({
+          TableName: USERS_TABLE,
+          Key: { id: user.id }
+        }).promise();
+        
+        if (!userResult.Item) {
+          return {
+            statusCode: 404,
+            headers: corsHeaders,
+            body: JSON.stringify({ message: 'User not found' })
+          };
+        }
+        
+        // Verify current password
+        const [hash, salt] = userResult.Item.password.split(':');
+        const verifyHash = crypto.pbkdf2Sync(currentPassword, salt, 10000, 64, 'sha512').toString('hex');
+        
+        if (hash !== verifyHash) {
+          return {
+            statusCode: 400,
+            headers: corsHeaders,
+            body: JSON.stringify({ message: 'Current password is incorrect' })
+          };
+        }
+        
+        // Hash new password
+        const newSalt = crypto.randomBytes(16).toString('hex');
+        const newHashedPassword = crypto.pbkdf2Sync(newPassword, newSalt, 10000, 64, 'sha512').toString('hex') + ':' + newSalt;
+        
+        // Update password in database
+        await dynamodb.update({
+          TableName: USERS_TABLE,
+          Key: { id: user.id },
+          UpdateExpression: 'SET password = :password, updated_at = :updated_at',
+          ExpressionAttributeValues: {
+            ':password': newHashedPassword,
+            ':updated_at': new Date().toISOString()
+          }
+        }).promise();
+        
+        // Invalidate all tokens for this user (force re-login)
+        Object.keys(activeTokens).forEach(token => {
+          if (activeTokens[token].id === user.id) {
+            delete activeTokens[token];
+          }
+        });
+        
+        return {
+          statusCode: 200,
+          headers: corsHeaders,
+          body: JSON.stringify({ 
+            message: 'Password changed successfully. Please log in again.',
+            changedAt: new Date().toISOString()
+          })
+        };
+      } catch (error) {
+        console.error('Error changing password:', error);
+        return {
+          statusCode: 500,
+          headers: corsHeaders,
+          body: JSON.stringify({ message: 'Failed to change password' })
+        };
+      }
+    }
+    
+    // Reset password endpoint (for forgotten passwords)
+    if (path === '/api/auth/reset-password' && httpMethod === 'POST') {
+      const { email, newPassword } = requestBody;
+      
+      if (!email || !newPassword) {
+        return {
+          statusCode: 400,
+          headers: corsHeaders,
+          body: JSON.stringify({ message: 'Email and new password are required' })
+        };
+      }
+      
+      if (newPassword.length < 6) {
+        return {
+          statusCode: 400,
+          headers: corsHeaders,
+          body: JSON.stringify({ message: 'New password must be at least 6 characters long' })
+        };
+      }
+      
+      try {
+        // Find user by email
+        const result = await dynamodb.query({
+          TableName: USERS_TABLE,
+          IndexName: 'EmailIndex',
+          KeyConditionExpression: 'email = :email',
+          ExpressionAttributeValues: {
+            ':email': email
+          }
+        }).promise();
+        
+        if (result.Items.length === 0) {
+          return {
+            statusCode: 404,
+            headers: corsHeaders,
+            body: JSON.stringify({ message: 'User not found' })
+          };
+        }
+        
+        const user = result.Items[0];
+        
+        // Hash new password
+        const salt = crypto.randomBytes(16).toString('hex');
+        const hashedPassword = crypto.pbkdf2Sync(newPassword, salt, 10000, 64, 'sha512').toString('hex') + ':' + salt;
+        
+        // Update password in database
+        await dynamodb.update({
+          TableName: USERS_TABLE,
+          Key: { id: user.id },
+          UpdateExpression: 'SET password = :password, updated_at = :updated_at',
+          ExpressionAttributeValues: {
+            ':password': hashedPassword,
+            ':updated_at': new Date().toISOString()
+          }
+        }).promise();
+        
+        // Invalidate all tokens for this user
+        Object.keys(activeTokens).forEach(token => {
+          if (activeTokens[token].id === user.id) {
+            delete activeTokens[token];
+          }
+        });
+        
+        return {
+          statusCode: 200,
+          headers: corsHeaders,
+          body: JSON.stringify({ 
+            message: 'Password reset successfully. You can now log in with your new password.',
+            resetAt: new Date().toISOString()
+          })
+        };
+      } catch (error) {
+        console.error('Error resetting password:', error);
+        return {
+          statusCode: 500,
+          headers: corsHeaders,
+          body: JSON.stringify({ message: 'Failed to reset password' })
+        };
+      }
     }
     
     // Delete own account endpoint

@@ -1,12 +1,14 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../hooks/useAuth'
+import ResetPassword from '../components/ResetPassword'
 
 export default function Login() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [showResetPassword, setShowResetPassword] = useState(false)
   
   const { login } = useAuth()
   const navigate = useNavigate()
@@ -75,7 +77,15 @@ export default function Login() {
           </button>
         </form>
 
-        <div className="mt-6 text-center">
+        <div className="mt-6 text-center space-y-2">
+          <button
+            type="button"
+            onClick={() => setShowResetPassword(true)}
+            className="text-sm text-primary-600 hover:text-primary-700 underline"
+          >
+            Forgot your password?
+          </button>
+          
           <p className="text-gray-600">
             Don't have an account?{' '}
             <Link to="/register" className="text-primary-600 hover:text-primary-700">
@@ -84,6 +94,17 @@ export default function Login() {
           </p>
         </div>
       </div>
+      
+      {showResetPassword && (
+        <ResetPassword
+          onClose={() => setShowResetPassword(false)}
+          onSuccess={() => {
+            setShowResetPassword(false)
+            setError(null)
+            alert('Password reset successfully! You can now log in with your new password.')
+          }}
+        />
+      )}
     </div>
   )
 }
