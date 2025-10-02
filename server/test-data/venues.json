@@ -1,0 +1,45 @@
+[
+  {
+    "id": 1,
+    "name": "The Comedy Studio",
+    "address": "1238 Massachusetts Ave, Cambridge, MA",
+    "phone": "(617) 661-6507",
+    "email": "info@thecomedystudio.com",
+    "description": "Premier comedy venue in Harvard Square",
+    "capacity": 50,
+    "amenities": [
+      "microphone",
+      "sound_system",
+      "stage_lighting"
+    ],
+    "owner_id": 2,
+    "owner_name": "Event Host"
+  },
+  {
+    "id": 2,
+    "name": "Club Passim",
+    "address": "47 Palmer St, Cambridge, MA",
+    "phone": "(617) 492-7679",
+    "email": "info@clubpassim.org",
+    "description": "Intimate folk music venue",
+    "capacity": 80,
+    "amenities": [
+      "microphone",
+      "sound_system",
+      "piano"
+    ],
+    "owner_id": 2,
+    "owner_name": "Event Host"
+  },
+  {
+    "id": 857,
+    "name": "Joe's Place",
+    "address": "59234 Street",
+    "phone": "",
+    "email": "",
+    "description": "",
+    "amenities": [],
+    "owner_id": 1,
+    "owner_name": "Test User"
+  }
+]

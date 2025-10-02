@@ -1,0 +1,20 @@
+[build]
+  publish = "dist"
+  command = "npm run build:prod"
+
+[build.environment]
+  NODE_VERSION = "18"
+
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
+
+[context.production.environment]
+  VITE_API_URL = "https://alaz4y94pg.execute-api.us-east-2.amazonaws.com/prod/api"
+
+[context.deploy-preview.environment]
+  VITE_API_URL = "https://alaz4y94pg.execute-api.us-east-2.amazonaws.com/prod/api"
+
+[context.branch-deploy.environment]
+  VITE_API_URL = "https://alaz4y94pg.execute-api.us-east-2.amazonaws.com/prod/api"

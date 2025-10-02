@@ -1,0 +1,1293 @@
+import { useState, useEffect } from 'react'
+import { useParams } from 'react-router-dom'
+import { eventsAPI, signupsAPI } from '../utils/api'
+import { useAuth } from '../hooks/useAuth'
+import { formatTime12Hour, formatDate, formatTimeOnly12Hour } from '../utils/dateTime'
+import { PERFORMANCE_TYPES } from '../constants/formOptions'
+import type { Event, Signup } from '../types'
+
+export default function EventDetail() {
+  const { id } = useParams<{ id: string }>()
+  const { user } = useAuth()
+  const [event, setEvent] = useState<Event | null>(null)
+  const [signups, setSignups] = useState<Signup[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [submitting, setSubmitting] = useState(false)
+  const [showAddPerformerForm, setShowAddPerformerForm] = useState(false)
+  const [showSignupForm, setShowSignupForm] = useState(false)
+  const [userSignup, setUserSignup] = useState<Signup | null>(null)
+  const [addPerformerForm, setAddPerformerForm] = useState({
+    performanceName: '',
+    performerName: '',
+    performanceType: 'music',
+    notes: ''
+  })
+  const [signupForm, setSignupForm] = useState({
+    performerName: '',
+    performanceType: 'music',
+    notes: ''
+  })
+
+  useEffect(() => {
+    const fetchEventData = async () => {
+      if (!id) return
+      
+      try {
+        const [eventResponse, signupsResponse] = await Promise.all([
+          eventsAPI.getById(parseInt(id)),
+          signupsAPI.getByEvent(parseInt(id))
+        ])
+        
+        setEvent(eventResponse.data)
+        setSignups(signupsResponse.data)
+        
+        // Check if current user is already signed up
+        if (user) {
+          const existingSignup = signupsResponse.data.find(signup => signup.user_id === user.id)
+          setUserSignup(existingSignup || null)
+        }
+      } catch (err) {
+        setError('Failed to load event')
+        console.error('Error fetching event:', err)
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchEventData()
+  }, [id])
+
+  // Update user signup status when user changes
+  useEffect(() => {
+    if (user && signups.length > 0) {
+      const existingSignup = signups.find(signup => signup.user_id === user.id)
+      setUserSignup(existingSignup || null)
+    } else {
+      setUserSignup(null)
+    }
+  }, [user, signups])
+
+  const isHost = user && event && user.id === event.host_id
+
+  const handleStartEvent = async () => {
+    if (!event || !isHost) return
+    
+    setSubmitting(true)
+    try {
+      const response = await eventsAPI.startEvent(event.id)
+      setEvent(response.data.event)
+    } catch (error) {
+      console.error('Error starting event:', error)
+      setError('Failed to start event')
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  const handleFinishEvent = async () => {
+    if (!event || !isHost) return
+    
+    setSubmitting(true)
+    try {
+      const response = await eventsAPI.finishEvent(event.id)
+      setEvent(response.data.event)
+    } catch (error) {
+      console.error('Error finishing event:', error)
+      setError('Failed to finish event')
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  const handleMarkFinished = async (signupId: number) => {
+    setSubmitting(true)
+    try {
+      const response = await signupsAPI.markAsFinished(signupId)
+      setSignups(prev => prev.map(signup => 
+        signup.id === signupId ? { ...signup, is_finished: true, finished_at: response.data.signup.finished_at } : signup
+      ))
+    } catch (error) {
+      console.error('Error marking performer as finished:', error)
+      setError('Failed to mark performer as finished')
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  const handleUnmarkFinished = async (signupId: number) => {
+    setSubmitting(true)
+    try {
+      await signupsAPI.unmarkAsFinished(signupId)
+      setSignups(prev => prev.map(signup => 
+        signup.id === signupId ? { ...signup, is_finished: false, finished_at: undefined } : signup
+      ))
+    } catch (error) {
+      console.error('Error unmarking performer as finished:', error)
+      setError('Failed to unmark performer as finished')
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  const handleAddPerformer = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!event) return
+    
+    setSubmitting(true)
+    try {
+      const response = await signupsAPI.addManualPerformer(event.id, addPerformerForm)
+      setSignups(prev => [...prev, response.data.signup])
+      setShowAddPerformerForm(false)
+      setAddPerformerForm({
+        performanceName: '',
+        performerName: '',
+        performanceType: 'music',
+        notes: ''
+      })
+    } catch (error) {
+      console.error('Error adding performer:', error)
+      setError('Failed to add performer')
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  // const handleReorderSignups = async (_newOrder: Signup[]) => {
+  //   if (!event || !isHost) return
+  //   
+  //   const signupIds = _newOrder.map((signup: Signup) => signup.id)
+  //   
+  //   try {
+  //     await signupsAPI.updatePerformerOrder(event.id, signupIds)
+  //     setSignups(_newOrder)
+  //   } catch (error) {
+  //     console.error('Error reordering performers:', error)
+  //     setError('Failed to reorder performers')
+  //   }
+  // }
+
+  // const handleSetCurrentPerformer = async (_signupId: number) => {
+  //   if (!event || !isHost) return
+  //   
+  //   setSubmitting(true)
+  //   try {
+  //     const response = await eventsAPI.setCurrentPerformer(event.id, _signupId)
+  //     setEvent(response.data.event)
+  //     
+  //     // Update signups to reflect current performer
+  //     setSignups(prev => prev.map(signup => ({
+  //       ...signup,
+  //       is_current_performer: signup.id === _signupId,
+  //       status: signup.id === _signupId ? 'performing' : signup.status
+  //     })))
+  //   } catch (error) {
+  //     console.error('Error setting current performer:', error)
+  //     setError('Failed to set current performer')
+  //   } finally {
+  //     setSubmitting(false)
+  //   }
+  // }
+
+  const handleSelectRandomPerformer = async () => {
+    if (!event || !isHost) return
+    
+    const availablePerformers = sortedSignups.filter(s => !s.is_finished && !s.is_current_performer)
+    if (availablePerformers.length === 0) return
+    
+    setSubmitting(true)
+    try {
+      // First, mark the current performer as finished (if there is one)
+      const currentPerformer = sortedSignups.find(s => s.is_current_performer)
+      if (currentPerformer) {
+        await signupsAPI.markAsFinished(currentPerformer.id)
+      }
+      
+      // Then randomly select and set the next performer
+      const randomIndex = Math.floor(Math.random() * availablePerformers.length)
+      const selectedPerformer = availablePerformers[randomIndex]
+      
+      const response = await eventsAPI.setCurrentPerformer(event.id, selectedPerformer.id)
+      setEvent(response.data.event)
+      
+      // Update signups to reflect the changes
+      setSignups(prev => prev.map(signup => ({
+        ...signup,
+        is_current_performer: signup.id === selectedPerformer.id,
+        is_finished: signup.id === currentPerformer?.id ? true : signup.is_finished,
+        finished_at: signup.id === currentPerformer?.id ? new Date().toISOString() : signup.finished_at,
+        status: signup.id === selectedPerformer.id ? 'performing' : 
+                signup.id === currentPerformer?.id ? 'performed' : signup.status
+      })))
+    } catch (error) {
+      console.error('Error selecting next performer:', error)
+      setError('Failed to select next performer')
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  const handleRandomizeOrder = async () => {
+    if (!event || !isHost) return
+    
+    setSubmitting(true)
+    try {
+      const response = await eventsAPI.randomizeOrder(event.id)
+      setSignups(response.data.signups)
+    } catch (error) {
+      console.error('Error randomizing order:', error)
+      setError('Failed to randomize performer order')
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  const handleSignup = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!event || !user) return
+    
+    setSubmitting(true)
+    try {
+      const response = await signupsAPI.create({
+        eventId: event.id,
+        performanceName: signupForm.performerName,
+        performanceType: signupForm.performanceType,
+        notes: signupForm.notes
+      })
+      
+      setSignups(prev => [...prev, response.data.signup])
+      setUserSignup(response.data.signup)
+      setShowSignupForm(false)
+      setSignupForm({
+        performerName: user.name,
+        performanceType: 'music',
+        notes: ''
+      })
+    } catch (error: any) {
+      console.error('Error signing up:', error)
+      setError(error.response?.data?.message || 'Failed to sign up for event')
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  const handleCancelSignup = async () => {
+    if (!event || !user || !userSignup) return
+    
+    if (!confirm('Are you sure you want to cancel your signup? This action cannot be undone.')) {
+      return
+    }
+    
+    setSubmitting(true)
+    try {
+      await signupsAPI.cancel(event.id)
+      setSignups(prev => prev.filter(signup => signup.user_id !== user.id))
+      setUserSignup(null)
+    } catch (error: any) {
+      console.error('Error canceling signup:', error)
+      setError(error.response?.data?.message || 'Failed to cancel signup')
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  // Booked mic management functions
+  const [draggedSignupId, setDraggedSignupId] = useState<number | null>(null)
+
+  const handleDragStart = (e: React.DragEvent, signupId: number) => {
+    setDraggedSignupId(signupId)
+    e.dataTransfer.effectAllowed = 'move'
+  }
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault()
+    e.dataTransfer.dropEffect = 'move'
+  }
+
+  const handleDrop = (e: React.DragEvent, dropIndex: number) => {
+    e.preventDefault()
+    if (!draggedSignupId) return
+
+    const draggedIndex = sortedSignups.findIndex(s => s.id === draggedSignupId)
+    if (draggedIndex === -1 || draggedIndex === dropIndex) return
+
+    // Reorder signups
+    const newSignups = [...sortedSignups]
+    const [draggedSignup] = newSignups.splice(draggedIndex, 1)
+    newSignups.splice(dropIndex, 0, draggedSignup)
+
+    // Update performance orders
+    const updatedSignups = newSignups.map((signup, index) => ({
+      ...signup,
+      performance_order: index + 1
+    }))
+
+    setSignups(prev => {
+      const otherSignups = prev.filter(s => s.event_id !== event?.id)
+      return [...otherSignups, ...updatedSignups]
+    })
+
+    setDraggedSignupId(null)
+  }
+
+  const handleUpdatePerformerLength = async (signupId: number, length: number) => {
+    if (!event || !isHost) return
+
+    try {
+      await eventsAPI.updatePerformerLength(signupId, length)
+      setSignups(prev => prev.map(signup => 
+        signup.id === signupId 
+          ? { ...signup, individual_performance_length: length }
+          : signup
+      ))
+    } catch (error) {
+      console.error('Error updating performer length:', error)
+      setError('Failed to update performance length')
+    }
+  }
+
+  const handleSavePerformerOrder = async () => {
+    if (!event || !isHost) return
+
+    setSubmitting(true)
+    try {
+      const performerOrder = sortedSignups.map((signup, index) => ({
+        signupId: signup.id,
+        order: index + 1,
+        performanceLength: signup.individual_performance_length
+      }))
+
+      await eventsAPI.updatePerformerOrder(event.id, performerOrder)
+      setError(null)
+    } catch (error) {
+      console.error('Error saving performer order:', error)
+      setError('Failed to save performer order')
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  const calculateTotalRuntime = () => {
+    return sortedSignups.reduce((total, signup) => {
+      return total + (signup.individual_performance_length || event?.performance_length || 5)
+    }, 0)
+  }
+
+  if (loading) {
+    return (
+      <div className="flex justify-center items-center h-64">
+        <div className="text-lg">Loading event...</div>
+      </div>
+    )
+  }
+
+  if (error || !event) {
+    return (
+      <div className="text-center text-red-600">
+        <p>{error || 'Event not found'}</p>
+      </div>
+    )
+  }
+
+  // const eventDate = new Date(event.date)
+  const confirmedSignups = signups.filter(signup => 
+    signup.status === 'confirmed' || signup.status === 'performing' || signup.status === 'performed'
+  )
+  const isEventFull = confirmedSignups.length >= event.max_performers
+  const now = new Date()
+  
+  // Check signup window status
+  const signupOpens = event.signup_opens ? new Date(event.signup_opens) : null
+  const signupDeadline = event.signup_deadline ? new Date(event.signup_deadline) : null
+  
+  const signupsNotOpenYet = signupOpens && signupOpens > now
+  const signupsClosed = signupDeadline && signupDeadline < now
+  // const signupsOpen = !signupsNotOpenYet && !signupsClosed
+
+  // Sort signups by performance order, then by creation time
+  const sortedSignups = [...signups].sort((a, b) => {
+    if (a.performance_order && b.performance_order) {
+      return a.performance_order - b.performance_order
+    }
+    if (a.performance_order && !b.performance_order) return -1
+    if (!a.performance_order && b.performance_order) return 1
+    return new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+  })
+
+  return (
+    <div className="max-w-6xl mx-auto">
+      {error && (
+        <div className="mb-4 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded">
+          {error}
+          <button 
+            onClick={() => setError(null)}
+            className="ml-2 text-red-500 hover:text-red-700"
+          >
+            ×
+          </button>
+        </div>
+      )}
+
+      <div className="card mb-6">
+        <div className="flex justify-between items-start mb-6">
+          <div>
+            <h1 className="text-3xl font-bold text-gray-900 mb-2">
+              {event.title}
+            </h1>
+            <div className="flex items-center space-x-3">
+              <span className="inline-block bg-primary-100 text-primary-800 px-3 py-1 rounded-full text-sm">
+                {event.event_type}
+              </span>
+              <span className={`inline-block px-3 py-1 rounded-full text-sm ${
+                event.event_status === 'live' ? 'bg-green-100 text-green-800' :
+                event.event_status === 'finished' ? 'bg-gray-100 text-gray-800' :
+                'bg-blue-100 text-blue-800'
+              }`}>
+                {event.event_status === 'live' ? '🔴 LIVE' :
+                 event.event_status === 'finished' ? '✅ Finished' :
+                 '📅 Scheduled'}
+              </span>
+            </div>
+          </div>
+          
+          {isHost && (
+            <div className="flex space-x-2">
+              {event.event_status === 'scheduled' && (
+                <button
+                  onClick={handleStartEvent}
+                  disabled={submitting}
+                  className="btn btn-primary"
+                >
+                  {submitting ? 'Starting...' : 'Start Event'}
+                </button>
+              )}
+              {event.event_status === 'live' && (
+                <button
+                  onClick={handleFinishEvent}
+                  disabled={submitting}
+                  className="btn bg-red-600 text-white hover:bg-red-700"
+                >
+                  {submitting ? 'Finishing...' : 'Finish Event'}
+                </button>
+              )}
+            </div>
+          )}
+        </div>
+
+        <div className="grid sm:grid-cols-1 lg:grid-cols-2 gap-6 lg:gap-8">
+          <div>
+            <h2 className="text-xl font-semibold mb-4">Event Details</h2>
+            <div className="space-y-3">
+              <div className="flex items-center">
+                <span className="text-gray-600 w-20">📍 Venue:</span>
+                <span>{event.venue_name}</span>
+              </div>
+              <div className="flex items-center">
+                <span className="text-gray-600 w-20">📍 Address:</span>
+                <span>{event.venue_address}</span>
+              </div>
+              <div className="flex items-center">
+                <span className="text-gray-600 w-20">📅 Date:</span>
+                <span>{formatDate(event.date)}</span>
+              </div>
+              <div className="flex items-center">
+                <span className="text-gray-600 w-20">🕐 Time:</span>
+                <span>{formatTime12Hour(event.start_time)} - {formatTime12Hour(event.end_time)}</span>
+              </div>
+              <div className="flex items-center">
+                <span className="text-gray-600 w-20">🎤 Slots:</span>
+                <span>{confirmedSignups.length}/{event.max_performers} performers</span>
+              </div>
+              <div className="flex items-center">
+                <span className="text-gray-600 w-20">⏱️ Length:</span>
+                <span>{event.performance_length} minutes per performer</span>
+              </div>
+              <div className="flex items-center">
+                <span className="text-gray-600 w-20">📋 List Type:</span>
+                <span className="flex items-center">
+                  {event.signup_list_mode === 'signup_order' && (
+                    <>
+                      <span className="text-blue-600 font-medium">Sign-up Order</span>
+                      <span className="text-gray-500 text-sm ml-2">(First come, first served)</span>
+                    </>
+                  )}
+                  {event.signup_list_mode === 'random_order' && (
+                    <>
+                      <span className="text-purple-600 font-medium">Random Order</span>
+                      <span className="text-gray-500 text-sm ml-2">(Shuffled when event starts)</span>
+                    </>
+                  )}
+                  {event.signup_list_mode === 'bucket' && (
+                    <>
+                      <span className="text-orange-600 font-medium">Bucket Style</span>
+                      <span className="text-gray-500 text-sm ml-2">(Host selects performers)</span>
+                    </>
+                  )}
+                  {event.signup_list_mode === 'booked_mic' && (
+                    <>
+                      <span className="text-purple-600 font-medium">Booked Mic</span>
+                      <span className="text-gray-500 text-sm ml-2">(Invite-only performers)</span>
+                    </>
+                  )}
+                </span>
+              </div>
+              {event.started_at && (
+                <div className="flex items-center">
+                  <span className="text-gray-600 w-20">🚀 Started:</span>
+                  <span>{new Date(event.started_at).toLocaleString()}</span>
+                </div>
+              )}
+            </div>
+
+            {event.description && (
+              <div className="mt-6">
+                <h3 className="text-lg font-semibold mb-2">Description</h3>
+                <p className="text-gray-700">{event.description}</p>
+              </div>
+            )}
+
+            <div className="mt-6">
+              <h3 className="text-lg font-semibold mb-2">Event Host</h3>
+              <p className="text-gray-700">{event.host_name}</p>
+            </div>
+          </div>
+
+          <div>
+            {event.event_status === 'scheduled' && !isHost && (
+              <>
+                <h2 className="text-xl font-semibold mb-4">
+                  {event.signup_list_mode === 'booked_mic' ? 'Invitation Status' : 'Sign Up to Perform'}
+                </h2>
+                
+                {event.signup_list_mode === 'booked_mic' ? (
+                  <div className="bg-purple-50 p-4 rounded-lg">
+                    <p className="text-purple-700 mb-2">
+                      <strong>Invite-Only Event</strong>
+                    </p>
+                    <p className="text-purple-600">
+                      This is a booked mic event. Performers are invited by the host. 
+                      {userSignup ? ' You have been invited to perform!' : ' You have not been invited to this event.'}
+                    </p>
+                  </div>
+                ) : !user ? (
+                  <div className="bg-gray-50 p-4 rounded-lg">
+                    <p className="text-gray-600 mb-4">
+                      You need to be logged in to sign up for events.
+                    </p>
+                    <div className="space-x-2">
+                      <a href="/login" className="btn btn-primary">
+                        Login
+                      </a>
+                      <a href="/register" className="btn btn-secondary">
+                        Sign Up
+                      </a>
+                    </div>
+                  </div>
+                ) : signupsNotOpenYet ? (
+                  <div className="bg-yellow-50 p-4 rounded-lg">
+                    <p className="text-yellow-700 mb-2">
+                      <strong>Signups Not Open Yet</strong>
+                    </p>
+                    <p className="text-yellow-600">
+                      Sign-ups open on {signupOpens?.toLocaleDateString()} at {event.signup_opens ? formatTimeOnly12Hour(event.signup_opens) : ''}
+                    </p>
+                  </div>
+                ) : signupsClosed ? (
+                  <div className="bg-red-50 p-4 rounded-lg">
+                    <p className="text-red-700">
+                      <strong>Signups Closed</strong>
+                    </p>
+                    <p className="text-red-600">
+                      The signup deadline has passed.
+                    </p>
+                  </div>
+                ) : isEventFull ? (
+                  <div className="bg-red-50 p-4 rounded-lg">
+                    <p className="text-red-700">
+                      <strong>Event Full</strong>
+                    </p>
+                    <p className="text-red-600">
+                      This event is currently full. Check back later for cancellations.
+                    </p>
+                  </div>
+                ) : userSignup ? (
+                  <div className="bg-blue-50 p-4 rounded-lg">
+                    <p className="text-blue-700 mb-2">
+                      <strong>You're signed up!</strong>
+                    </p>
+                    <p className="text-blue-600 mb-4">
+                      Performance: "{userSignup.performance_name}"
+                    </p>
+                    <button 
+                      onClick={handleCancelSignup}
+                      disabled={submitting}
+                      className="btn bg-red-600 text-white hover:bg-red-700"
+                    >
+                      {submitting ? 'Canceling...' : 'Cancel Signup'}
+                    </button>
+                  </div>
+                ) : (
+                  <div className="bg-green-50 p-4 rounded-lg">
+                    <p className="text-green-700 mb-4">
+                      <strong>Signups Open!</strong> Spots available.
+                    </p>
+                    <button 
+                      onClick={() => {
+                        setSignupForm({
+                          performerName: user.name,
+                          performanceType: 'music',
+                          notes: ''
+                        })
+                        setShowSignupForm(true)
+                      }}
+                      className="btn btn-primary"
+                    >
+                      Sign Up to Perform
+                    </button>
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Performer List - Shows for live events or for hosts */}
+      {(event.event_status === 'live' || event.event_status === 'finished' || isHost) && (
+        <div className="card">
+          {/* Different interfaces based on signup list mode */}
+          {event.signup_list_mode === 'booked_mic' ? (
+            // Booked Mic Interface - Enhanced for hosts, read-only for performers
+            <>
+              <div className="flex justify-between items-center mb-6">
+                <h2 className="text-xl font-semibold">
+                  {event.event_status === 'live' ? 'Performance Order' : 
+                   event.event_status === 'finished' ? 'Final Performance List' : 
+                   'Booked Performers'}
+                </h2>
+                
+                {isHost && (
+                  <div className="flex space-x-2">
+                    {event.event_status === 'scheduled' && (
+                      <button
+                        onClick={() => handleSavePerformerOrder()}
+                        disabled={submitting}
+                        className="btn btn-primary text-sm"
+                      >
+                        Save Order
+                      </button>
+                    )}
+                    {event.event_status === 'live' && (
+                      <button
+                        onClick={() => setShowAddPerformerForm(true)}
+                        className="btn btn-secondary"
+                      >
+                        Add Performer
+                      </button>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {sortedSignups.length === 0 ? (
+                <div className="text-center py-8 text-gray-500">
+                  {event.event_status === 'scheduled' ? 'No performers have accepted invites yet.' : 'No performers signed up.'}
+                </div>
+              ) : (
+                <>
+                  {isHost && event.event_status === 'scheduled' && (
+                    <div className="mb-4 p-3 bg-purple-50 border border-purple-200 rounded-lg">
+                      <p className="text-sm text-purple-700">
+                        <strong>Host Controls:</strong> Drag performers to reorder, set individual performance lengths, and manage the show lineup.
+                      </p>
+                    </div>
+                  )}
+                  
+                  <div className="space-y-3">
+                    {sortedSignups.map((signup, index) => (
+                      <div
+                        key={signup.id}
+                        className={`p-4 rounded-lg border ${
+                          signup.is_finished ? 'bg-gray-50 border-gray-200' : 'bg-white border-gray-300'
+                        } ${isHost && event.event_status === 'scheduled' ? 'cursor-move hover:shadow-md transition-shadow' : ''}`}
+                        draggable={!!(isHost && event.event_status === 'scheduled')}
+                        onDragStart={(e) => handleDragStart(e, signup.id)}
+                        onDragOver={handleDragOver}
+                        onDrop={(e) => handleDrop(e, index)}
+                      >
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center space-x-4">
+                            <div className="flex items-center space-x-2">
+                              {isHost && event.event_status === 'scheduled' && (
+                                <div className="text-gray-400 cursor-move">
+                                  ⋮⋮
+                                </div>
+                              )}
+                              <div className="text-lg font-semibold text-purple-600 w-8">
+                                #{signup.performance_order || index + 1}
+                              </div>
+                            </div>
+                            <div className="flex-1">
+                              <div className="flex items-center space-x-2">
+                                <h3 className={`font-semibold ${signup.is_finished ? 'line-through text-gray-500' : 'text-gray-900'}`}>
+                                  {signup.performance_name}
+                                </h3>
+                                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
+                                  BOOKED
+                                </span>
+                              </div>
+                              <p className={`text-sm ${signup.is_finished ? 'text-gray-400' : 'text-gray-600'}`}>
+                                {signup.user_name} • {signup.performance_type}
+                              </p>
+                              {signup.notes && (
+                                <p className={`text-sm mt-1 ${signup.is_finished ? 'text-gray-400' : 'text-gray-500'}`}>
+                                  {signup.notes}
+                                </p>
+                              )}
+                            </div>
+                          </div>
+                          
+                          <div className="flex items-center space-x-3">
+                            {/* Performance Length Control */}
+                            {isHost && event.event_status === 'scheduled' ? (
+                              <div className="flex items-center space-x-2">
+                                <label className="text-sm text-gray-600">Length:</label>
+                                <input
+                                  type="number"
+                                  min="1"
+                                  max="60"
+                                  value={signup.individual_performance_length || event.performance_length}
+                                  onChange={(e) => handleUpdatePerformerLength(signup.id, parseInt(e.target.value))}
+                                  className="w-16 px-2 py-1 text-sm border border-gray-300 rounded"
+                                />
+                                <span className="text-sm text-gray-500">min</span>
+                              </div>
+                            ) : (
+                              <div className="text-sm text-gray-500">
+                                {signup.individual_performance_length || event.performance_length} min
+                              </div>
+                            )}
+                            
+                            {/* Live Event Controls */}
+                            {isHost && event.event_status === 'live' && (
+                              <div className="flex space-x-2">
+                                {signup.is_finished ? (
+                                  <button
+                                    onClick={() => handleUnmarkFinished(signup.id)}
+                                    disabled={submitting}
+                                    className="btn btn-secondary text-sm"
+                                  >
+                                    Undo
+                                  </button>
+                                ) : (
+                                  <button
+                                    onClick={() => handleMarkFinished(signup.id)}
+                                    disabled={submitting}
+                                    className="btn btn-primary text-sm"
+                                  >
+                                    Mark Finished
+                                  </button>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  
+                  {/* Show total runtime for hosts */}
+                  {isHost && (
+                    <div className="mt-4 p-3 bg-gray-50 rounded-lg">
+                      <p className="text-sm text-gray-700">
+                        <strong>Total Show Length:</strong> {calculateTotalRuntime()} minutes
+                        {sortedSignups.length > 0 && (
+                          <span className="ml-2 text-gray-500">
+                            ({sortedSignups.length} performer{sortedSignups.length !== 1 ? 's' : ''})
+                          </span>
+                        )}
+                      </p>
+                    </div>
+                  )}
+                </>
+              )}
+            </>
+          ) : event.signup_list_mode === 'bucket' ? (
+            // Bucket Mode Interface
+            <>
+              {isHost ? (
+                // Host view for bucket mode
+                <>
+                  <div className="flex justify-between items-center mb-6">
+                    <h2 className="text-xl font-semibold">
+                      {event.event_status === 'live' ? 'Bucket Mode - Select Next Performer' :
+                       event.event_status === 'finished' ? 'Bucket Mode - Final Results' :
+                       'Bucket Mode - Signed Up Performers'}
+                    </h2>
+                    {event.event_status === 'live' && (
+                      <button
+                        onClick={() => setShowAddPerformerForm(true)}
+                        className="btn btn-secondary"
+                      >
+                        Add Performer
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Current Performer - Only show for live events */}
+                  {event.event_status === 'live' && (() => {
+                    const currentPerformer = sortedSignups.find(s => s.is_current_performer)
+                    return currentPerformer ? (
+                      <div className="mb-6 p-4 bg-green-50 border border-green-200 rounded-lg">
+                        <h3 className="text-lg font-semibold text-green-800 mb-2">🎤 Currently Performing</h3>
+                        <div className="text-green-700">
+                          <p className="font-medium">{currentPerformer.performance_name}</p>
+                          <p className="text-sm">{currentPerformer.user_name || 'Walk-in performer'} • {currentPerformer.performance_type}</p>
+                        </div>
+                        {sortedSignups.filter(s => !s.is_finished && !s.is_current_performer).length > 0 ? (
+                          <button
+                            onClick={handleSelectRandomPerformer}
+                            disabled={submitting}
+                            className="btn btn-primary text-sm mt-3"
+                          >
+                            🎲 Next Performer
+                          </button>
+                        ) : (
+                          <button
+                            onClick={() => handleMarkFinished(currentPerformer.id)}
+                            disabled={submitting}
+                            className="btn btn-primary text-sm mt-3"
+                          >
+                            Mark as Finished
+                          </button>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="mb-6 p-4 bg-gray-50 border border-gray-200 rounded-lg">
+                        <p className="text-gray-600">No performer currently selected</p>
+                      </div>
+                    )
+                  })()}
+
+                  {/* Available Performers - Only show for live events */}
+                  {event.event_status === 'live' && (
+                    <div className="mb-6">
+                      <div className="flex justify-between items-center mb-4">
+                        <h3 className="text-lg font-semibold">Available Performers ({sortedSignups.filter(s => !s.is_finished && !s.is_current_performer).length})</h3>
+                        {sortedSignups.filter(s => !s.is_finished && !s.is_current_performer).length > 0 && (
+                          <button
+                            onClick={handleSelectRandomPerformer}
+                            disabled={submitting}
+                            className="btn btn-primary"
+                          >
+                            🎲 Select Next Performer
+                          </button>
+                        )}
+                      </div>
+                      
+                      {sortedSignups.filter(s => !s.is_finished && !s.is_current_performer).length === 0 ? (
+                        <div className="text-center py-8 text-gray-500">
+                          No more performers available.
+                        </div>
+                      ) : (
+                        <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
+                          <p className="text-gray-600 text-center">
+                            {sortedSignups.filter(s => !s.is_finished && !s.is_current_performer).length} performer(s) waiting in the bucket
+                          </p>
+                          <div className="mt-3 flex flex-wrap gap-2 justify-center">
+                            {sortedSignups
+                              .filter(s => !s.is_finished && !s.is_current_performer)
+                              .map((signup) => (
+                                <span
+                                  key={signup.id}
+                                  className="inline-block px-3 py-1 bg-white border border-gray-300 rounded-full text-sm text-gray-700"
+                                >
+                                  {signup.performance_name} ({signup.performance_type})
+                                </span>
+                              ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Simple list for non-live bucket events */}
+                  {event.event_status !== 'live' && (
+                    <div className="mb-6">
+                      <h3 className="text-lg font-semibold mb-4">
+                        {event.event_status === 'finished' ? 'All Performers' : 'Signed Up Performers'} ({sortedSignups.length})
+                      </h3>
+                      {sortedSignups.length === 0 ? (
+                        <div className="text-center py-8 text-gray-500">
+                          No performers signed up yet.
+                        </div>
+                      ) : (
+                        <div className="space-y-3">
+                          {sortedSignups.map((signup) => (
+                            <div
+                              key={signup.id}
+                              className={`p-4 rounded-lg border ${
+                                signup.is_finished ? 'bg-gray-50 border-gray-200' : 'bg-white border-gray-300'
+                              }`}
+                            >
+                              <h4 className={`font-semibold ${signup.is_finished ? 'line-through text-gray-500' : 'text-gray-900'}`}>
+                                {signup.performance_name}
+                              </h4>
+                              <p className={`text-sm ${signup.is_finished ? 'text-gray-400' : 'text-gray-600'}`}>
+                                {signup.user_name || 'Walk-in performer'} • {signup.performance_type}
+                              </p>
+                              {signup.notes && (
+                                <p className={`text-sm mt-1 ${signup.is_finished ? 'text-gray-400' : 'text-gray-500'}`}>
+                                  {signup.notes}
+                                </p>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Finished Performers */}
+                  {sortedSignups.filter(s => s.is_finished).length > 0 && (
+                    <>
+                      <h3 className="text-lg font-semibold mb-4">Finished Performers</h3>
+                      <div className="space-y-3">
+                        {sortedSignups
+                          .filter(s => s.is_finished)
+                          .map((signup) => (
+                            <div
+                              key={signup.id}
+                              className="flex items-center justify-between p-4 rounded-lg border bg-gray-50 border-gray-200"
+                            >
+                              <div>
+                                <h4 className="font-semibold text-gray-500 line-through">{signup.performance_name}</h4>
+                                <p className="text-sm text-gray-400">
+                                  {signup.user_name || 'Walk-in performer'} • {signup.performance_type}
+                                </p>
+                              </div>
+                              <button
+                                onClick={() => handleUnmarkFinished(signup.id)}
+                                disabled={submitting}
+                                className="btn btn-secondary text-sm"
+                              >
+                                Undo
+                              </button>
+                            </div>
+                          ))}
+                      </div>
+                    </>
+                  )}
+                </>
+              ) : (
+                // Non-host view for bucket mode
+                <>
+                  <div className="mb-6">
+                    <h2 className="text-xl font-semibold">
+                      {event.event_status === 'live' ? 'Currently Performing' :
+                       event.event_status === 'finished' ? 'Event Results' :
+                       'Signed Up Performers'}
+                    </h2>
+                  </div>
+                  
+                  {event.event_status === 'live' ? (
+                    // Live event - show current performer only
+                    (() => {
+                      const currentPerformer = sortedSignups.find(s => s.is_current_performer)
+                      return currentPerformer ? (
+                        <div className="p-6 bg-green-50 border border-green-200 rounded-lg text-center">
+                          <h3 className="text-2xl font-bold text-green-800 mb-2">🎤 {currentPerformer.performance_name}</h3>
+                          <p className="text-green-700">{currentPerformer.user_name || 'Walk-in performer'}</p>
+                          <p className="text-sm text-green-600 mt-1">{currentPerformer.performance_type}</p>
+                        </div>
+                      ) : (
+                        <div className="p-6 bg-gray-50 border border-gray-200 rounded-lg text-center">
+                          <p className="text-gray-600">No performer currently selected</p>
+                        </div>
+                      )
+                    })()
+                  ) : (
+                    // Non-live event - show simple list without slot numbers
+                    sortedSignups.length === 0 ? (
+                      <div className="text-center py-8 text-gray-500">
+                        No performers signed up yet.
+                      </div>
+                    ) : (
+                      <div className="space-y-3">
+                        {sortedSignups.map((signup) => (
+                          <div
+                            key={signup.id}
+                            className={`p-4 rounded-lg border ${
+                              signup.is_finished ? 'bg-gray-50 border-gray-200' : 'bg-white border-gray-300'
+                            }`}
+                          >
+                            <h4 className={`font-semibold ${signup.is_finished ? 'line-through text-gray-500' : 'text-gray-900'}`}>
+                              {signup.performance_name}
+                            </h4>
+                            <p className={`text-sm ${signup.is_finished ? 'text-gray-400' : 'text-gray-600'}`}>
+                              {signup.user_name || 'Walk-in performer'} • {signup.performance_type}
+                            </p>
+                            {signup.notes && (
+                              <p className={`text-sm mt-1 ${signup.is_finished ? 'text-gray-400' : 'text-gray-500'}`}>
+                                {signup.notes}
+                              </p>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    )
+                  )}
+                </>
+              )}
+            </>
+          ) : (
+            // Standard Mode Interface (signup_order or random_order)
+            <>
+              <div className="flex justify-between items-center mb-6">
+                <h2 className="text-xl font-semibold">
+                  {event.event_status === 'live' ? 'Performance Order' : 
+                   event.event_status === 'finished' ? 'Final Performance List' : 
+                   'Signed Up Performers'}
+                  {event.signup_list_mode === 'random_order' && event.event_status === 'live' && (
+                    <span className="text-sm text-gray-500 ml-2">(Randomized)</span>
+                  )}
+                </h2>
+                
+                <div className="flex space-x-2">
+                  {isHost && event.event_status === 'live' && event.signup_list_mode === 'random_order' && (
+                    <button
+                      onClick={handleRandomizeOrder}
+                      disabled={submitting}
+                      className="btn btn-secondary text-sm"
+                    >
+                      🎲 Randomize Again
+                    </button>
+                  )}
+                  {isHost && event.event_status === 'live' && (
+                    <button
+                      onClick={() => setShowAddPerformerForm(true)}
+                      className="btn btn-secondary"
+                    >
+                      Add Performer
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {sortedSignups.length === 0 ? (
+                <div className="text-center py-8 text-gray-500">
+                  No performers signed up yet.
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {sortedSignups.map((signup, index) => (
+                    <div
+                      key={signup.id}
+                      className={`flex items-center justify-between p-4 rounded-lg border ${
+                        signup.is_finished ? 'bg-gray-50 border-gray-200' : 'bg-white border-gray-300'
+                      }`}
+                    >
+                      <div className="flex items-center space-x-4">
+                        <div className="text-lg font-semibold text-gray-500 w-8">
+                          #{index + 1}
+                        </div>
+                        <div>
+                          <h3 className={`font-semibold ${signup.is_finished ? 'line-through text-gray-500' : 'text-gray-900'}`}>
+                            {signup.performance_name}
+                          </h3>
+                          <p className={`text-sm ${signup.is_finished ? 'text-gray-400' : 'text-gray-600'}`}>
+                            {signup.user_name || 'Walk-in performer'} • {signup.performance_type}
+                          </p>
+                          {signup.notes && (
+                            <p className={`text-sm mt-1 ${signup.is_finished ? 'text-gray-400' : 'text-gray-500'}`}>
+                              {signup.notes}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                      
+                      {isHost && event.event_status === 'live' && (
+                        <div className="flex space-x-2">
+                          {signup.is_finished ? (
+                            <button
+                              onClick={() => handleUnmarkFinished(signup.id)}
+                              disabled={submitting}
+                              className="btn btn-secondary text-sm"
+                            >
+                              Undo
+                            </button>
+                          ) : (
+                            <button
+                              onClick={() => handleMarkFinished(signup.id)}
+                              disabled={submitting}
+                              className="btn btn-primary text-sm"
+                            >
+                              Mark Finished
+                            </button>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      )}
+
+      {/* Add Performer Modal */}
+      {showAddPerformerForm && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-lg p-6 w-full max-w-md">
+            <h3 className="text-lg font-semibold mb-4">Add Walk-in Performer</h3>
+            <form onSubmit={handleAddPerformer} className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Performer Name *
+                </label>
+                <input
+                  type="text"
+                  value={addPerformerForm.performerName}
+                  onChange={(e) => setAddPerformerForm(prev => ({ ...prev, performerName: e.target.value }))}
+                  className="input"
+                  required
+                />
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Performance Name *
+                </label>
+                <input
+                  type="text"
+                  value={addPerformerForm.performanceName}
+                  onChange={(e) => setAddPerformerForm(prev => ({ ...prev, performanceName: e.target.value }))}
+                  className="input"
+                  required
+                />
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Performance Type *
+                </label>
+                <select
+                  value={addPerformerForm.performanceType}
+                  onChange={(e) => setAddPerformerForm(prev => ({ ...prev, performanceType: e.target.value }))}
+                  className="input"
+                  required
+                >
+                  {PERFORMANCE_TYPES.map(type => (
+                    <option key={type.value} value={type.value}>{type.label}</option>
+                  ))}
+                </select>
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Notes
+                </label>
+                <textarea
+                  value={addPerformerForm.notes}
+                  onChange={(e) => setAddPerformerForm(prev => ({ ...prev, notes: e.target.value }))}
+                  className="input"
+                  rows={2}
+                />
+              </div>
+              
+              <div className="flex space-x-3 pt-4">
+                <button 
+                  type="submit" 
+                  className="btn btn-primary flex-1"
+                  disabled={submitting}
+                >
+                  {submitting ? 'Adding...' : 'Add Performer'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowAddPerformerForm(false)}
+                  className="btn btn-secondary flex-1"
+                  disabled={submitting}
+                >
+                  Cancel
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Sign-up Form Modal */}
+      {showSignupForm && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-lg p-6 w-full max-w-md">
+            <h3 className="text-lg font-semibold mb-4">Sign Up to Perform</h3>
+            <form onSubmit={handleSignup} className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Performer Name *
+                </label>
+                <input
+                  type="text"
+                  value={signupForm.performerName}
+                  onChange={(e) => setSignupForm(prev => ({ ...prev, performerName: e.target.value }))}
+                  className="input"
+                  placeholder="Your name or stage name"
+                  required
+                />
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Performance Type *
+                </label>
+                <select
+                  value={signupForm.performanceType}
+                  onChange={(e) => setSignupForm(prev => ({ ...prev, performanceType: e.target.value }))}
+                  className="input"
+                  required
+                >
+                  {PERFORMANCE_TYPES.map(type => (
+                    <option key={type.value} value={type.value}>{type.label}</option>
+                  ))}
+                </select>
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Notes (Optional)
+                </label>
+                <textarea
+                  value={signupForm.notes}
+                  onChange={(e) => setSignupForm(prev => ({ ...prev, notes: e.target.value }))}
+                  className="input"
+                  rows={3}
+                  placeholder="Any special requirements, song titles, etc."
+                />
+              </div>
+              
+              <div className="flex space-x-3 pt-4">
+                <button 
+                  type="submit" 
+                  className="btn btn-primary flex-1"
+                  disabled={submitting}
+                >
+                  {submitting ? 'Signing Up...' : 'Sign Me Up!'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowSignupForm(false)}
+                  className="btn btn-secondary flex-1"
+                  disabled={submitting}
+                >
+                  Cancel
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}

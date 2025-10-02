@@ -1,0 +1,21 @@
+{
+  "name": "boston-open-mics-server",
+  "version": "1.0.0",
+  "description": "Backend API for Boston Open Mics platform",
+  "main": "index.js",
+  "scripts": {
+    "dev": "nodemon index.js",
+    "start": "node index.js",
+    "test": "jest",
+    "setup-db": "node setup-db.js"
+  },
+  "dependencies": {
+    "aws-sdk": "^2.1691.0",
+    "uuid": "^9.0.1"
+  },
+  "devDependencies": {
+    "jest": "^29.7.0",
+    "nodemon": "^3.0.2",
+    "supertest": "^6.3.3"
+  }
+}
