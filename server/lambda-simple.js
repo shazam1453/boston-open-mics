@@ -522,6 +522,49 @@ exports.handler = async (event, context) => {
       };
     }
     
+    // Invitation endpoint
+    if (path === '/api/invitations/send' && httpMethod === 'POST') {
+      const user = authenticate();
+      if (!user) {
+        return {
+          statusCode: 401,
+          headers: corsHeaders,
+          body: JSON.stringify({ message: 'Unauthorized' })
+        };
+      }
+      
+      const { email, inviterName, inviterEmail, type, message } = requestBody;
+      
+      // Validate email format
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(email)) {
+        return {
+          statusCode: 400,
+          headers: corsHeaders,
+          body: JSON.stringify({ message: 'Invalid email format' })
+        };
+      }
+      
+      // Log invitation (in production, would send actual email)
+      console.log('📧 Invitation Email Would Be Sent:');
+      console.log(`To: ${email}`);
+      console.log(`From: ${inviterName} (${inviterEmail})`);
+      console.log(`Type: ${type}`);
+      console.log(`Message: ${message}`);
+      console.log('---');
+      
+      return {
+        statusCode: 200,
+        headers: corsHeaders,
+        body: JSON.stringify({
+          message: 'Invitation sent successfully',
+          email,
+          type,
+          sentAt: new Date().toISOString()
+        })
+      };
+    }
+    
     // 404 for unmatched routes
     return {
       statusCode: 404,

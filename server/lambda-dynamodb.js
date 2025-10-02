@@ -1,11 +1,9 @@
 const { v4: uuidv4 } = require('uuid');
 const crypto = require('crypto');
 
-// Initialize DynamoDB using AWS SDK v2 (available in Lambda runtime)
+// Use AWS SDK from Lambda runtime environment (no bundling needed)
 const AWS = require('aws-sdk');
-const dynamodb = new AWS.DynamoDB.DocumentClient({
-  region: process.env.AWS_REGION || 'us-east-2'
-});
+const dynamodb = new AWS.DynamoDB.DocumentClient();
 
 // Table names from environment variables
 const USERS_TABLE = process.env.USERS_TABLE;
@@ -70,11 +68,70 @@ exports.handler = async (event, context) => {
           status: 'OK',
           message: 'Boston Open Mics API with DynamoDB!',
           timestamp: new Date().toISOString(),
+          version: 'dynamodb-v1.0',
           tables: {
             users: USERS_TABLE,
             venues: VENUES_TABLE,
             events: EVENTS_TABLE,
             signups: SIGNUPS_TABLE
+          }
+        })
+      };
+    }
+    
+    // API info endpoint
+    if (path === '/api' && httpMethod === 'GET') {
+      return {
+        statusCode: 200,
+        headers: corsHeaders,
+        body: JSON.stringify({
+          name: 'Boston Open Mics API',
+          version: 'dynamodb-v1.0',
+          status: 'running',
+          timestamp: new Date().toISOString(),
+          database: 'DynamoDB',
+          endpoints: {
+            auth: [
+              'POST /api/auth/login',
+              'POST /api/auth/register',
+              'GET /api/auth/profile',
+              'GET /api/auth/me',
+              'PUT /api/auth/profile'
+            ],
+            events: [
+              'GET /api/events',
+              'GET /api/events/{id}',
+              'POST /api/events',
+              'PUT /api/events/{id}',
+              'POST /api/events/{id}/randomize-order'
+            ],
+            venues: [
+              'GET /api/venues',
+              'POST /api/venues'
+            ],
+            signups: [
+              'GET /api/signups/event/{eventId}',
+              'POST /api/signups',
+              'GET /api/signups/my-signups',
+              'PUT /api/signups/event/{eventId}/order',
+              'PUT /api/signups/{id}/finish',
+              'PUT /api/signups/{id}/unfinish'
+            ],
+            users: [
+              'GET /api/users/search'
+            ],
+            admin: [
+              'GET /api/admin/users',
+              'DELETE /api/admin/users/{id}',
+              'PUT /api/admin/users/{id}/role',
+              'GET /api/admin/events',
+              'DELETE /api/admin/events/{id}',
+              'GET /api/admin/venues',
+              'DELETE /api/admin/venues/{id}'
+            ],
+            invitations: [
+              'POST /api/invitations/send'
+            ]
           }
         })
       };

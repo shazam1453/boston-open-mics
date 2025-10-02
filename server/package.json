@@ -10,7 +10,9 @@
     "setup-db": "node setup-db.js"
   },
   "dependencies": {
-    "uuid": "^9.0.1"
+    "uuid": "^9.0.1",
+    "aws-sdk": "^2.1691.0",
+    "jmespath": "^0.16.0"
   },
   "devDependencies": {
     "jest": "^29.7.0",
