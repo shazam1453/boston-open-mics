@@ -23,6 +23,20 @@ const CONVERSATION_PARTICIPANTS_TABLE = process.env.CONVERSATION_PARTICIPANTS_TA
 const activeTokens = global.activeTokens || {};
 global.activeTokens = activeTokens;
 
+// Token expiration time (1 hour in milliseconds)
+const TOKEN_EXPIRATION_TIME = 60 * 60 * 1000; // 1 hour
+
+// Helper function to clean up expired tokens
+const cleanupExpiredTokens = () => {
+  const now = Date.now();
+  Object.keys(activeTokens).forEach(token => {
+    if (activeTokens[token].expiresAt && activeTokens[token].expiresAt < now) {
+      console.log('Removing expired token for user:', activeTokens[token].user?.email || 'unknown');
+      delete activeTokens[token];
+    }
+  });
+};
+
 // Email helper function
 const sendEmail = async (to, subject, htmlBody, textBody) => {
   const fromEmail = process.env.SES_FROM_EMAIL || 'noreply@bostonopenmic.com';
@@ -95,13 +109,29 @@ exports.handler = async (event, context) => {
     
     // Helper function to authenticate
     const authenticate = () => {
+      // Clean up expired tokens on each authentication attempt
+      cleanupExpiredTokens();
+      
       const authHeader = headers.Authorization || headers.authorization;
       if (!authHeader || !authHeader.startsWith('Bearer ')) {
         return null;
       }
       
       const token = authHeader.replace('Bearer ', '');
-      return activeTokens[token] || null;
+      const tokenData = activeTokens[token];
+      
+      if (!tokenData) {
+        return null;
+      }
+      
+      // Check if token has expired
+      if (tokenData.expiresAt && tokenData.expiresAt < Date.now()) {
+        console.log('Token expired for user:', tokenData.user?.email || 'unknown');
+        delete activeTokens[token];
+        return null;
+      }
+      
+      return tokenData.user;
     };
     
     // Health check
@@ -145,6 +175,7 @@ exports.handler = async (event, context) => {
               'PUT /api/auth/change-password',
               'POST /api/auth/request-password-reset',
               'POST /api/auth/reset-password',
+              'POST /api/auth/refresh-token',
               'DELETE /api/auth/delete-account'
             ],
             events: [
@@ -251,7 +282,12 @@ exports.handler = async (event, context) => {
       }).promise();
       
       const token = `token_${Date.now()}_${Math.random()}`;
-      activeTokens[token] = newUser;
+      const expiresAt = Date.now() + TOKEN_EXPIRATION_TIME;
+      activeTokens[token] = {
+        user: newUser,
+        expiresAt: expiresAt,
+        createdAt: Date.now()
+      };
       
       const { password: _, ...userResponse } = newUser;
       
@@ -260,7 +296,9 @@ exports.handler = async (event, context) => {
         headers: corsHeaders,
         body: JSON.stringify({
           token,
-          user: userResponse
+          user: userResponse,
+          expiresAt: new Date(expiresAt).toISOString(),
+          expiresIn: TOKEN_EXPIRATION_TIME / 1000 // seconds
         })
       };
     }
@@ -300,7 +338,12 @@ exports.handler = async (event, context) => {
       }
       
       const token = `token_${Date.now()}_${Math.random()}`;
-      activeTokens[token] = user;
+      const expiresAt = Date.now() + TOKEN_EXPIRATION_TIME;
+      activeTokens[token] = {
+        user: user,
+        expiresAt: expiresAt,
+        createdAt: Date.now()
+      };
       
       const { password: _, ...userResponse } = user;
       
@@ -309,7 +352,9 @@ exports.handler = async (event, context) => {
         headers: corsHeaders,
         body: JSON.stringify({
           token,
-          user: userResponse
+          user: userResponse,
+          expiresAt: new Date(expiresAt).toISOString(),
+          expiresIn: TOKEN_EXPIRATION_TIME / 1000 // seconds
         })
       };
     }
@@ -425,7 +470,7 @@ exports.handler = async (event, context) => {
         
         // Invalidate all tokens for this user (force re-login)
         Object.keys(activeTokens).forEach(token => {
-          if (activeTokens[token].id === user.id) {
+          if (activeTokens[token].user && activeTokens[token].user.id === user.id) {
             delete activeTokens[token];
           }
         });
@@ -592,7 +637,7 @@ exports.handler = async (event, context) => {
         
         // Invalidate all tokens for this user
         Object.keys(activeTokens).forEach(token => {
-          if (activeTokens[token].id === user.id) {
+          if (activeTokens[token].user && activeTokens[token].user.id === user.id) {
             delete activeTokens[token];
           }
         });
@@ -611,6 +656,54 @@ exports.handler = async (event, context) => {
           statusCode: 500,
           headers: corsHeaders,
           body: JSON.stringify({ message: 'Failed to reset password' })
+        };
+      }
+    }
+    
+    // Token refresh endpoint
+    if (path === '/api/auth/refresh-token' && httpMethod === 'POST') {
+      const user = authenticate();
+      if (!user) {
+        return {
+          statusCode: 401,
+          headers: corsHeaders,
+          body: JSON.stringify({ message: 'Unauthorized - token expired or invalid' })
+        };
+      }
+      
+      try {
+        // Find the current token
+        const currentTokenKey = Object.keys(activeTokens).find(token => 
+          activeTokens[token].user && activeTokens[token].user.id === user.id
+        );
+        
+        if (currentTokenKey) {
+          // Extend the current token's expiration
+          const newExpiresAt = Date.now() + TOKEN_EXPIRATION_TIME;
+          activeTokens[currentTokenKey].expiresAt = newExpiresAt;
+          
+          return {
+            statusCode: 200,
+            headers: corsHeaders,
+            body: JSON.stringify({ 
+              message: 'Token refreshed successfully',
+              expiresAt: new Date(newExpiresAt).toISOString(),
+              expiresIn: TOKEN_EXPIRATION_TIME / 1000 // seconds
+            })
+          };
+        } else {
+          return {
+            statusCode: 401,
+            headers: corsHeaders,
+            body: JSON.stringify({ message: 'Token not found' })
+          };
+        }
+      } catch (error) {
+        console.error('Error refreshing token:', error);
+        return {
+          statusCode: 500,
+          headers: corsHeaders,
+          body: JSON.stringify({ message: 'Failed to refresh token' })
         };
       }
     }
@@ -644,7 +737,7 @@ exports.handler = async (event, context) => {
         
         // Remove all active tokens for this user
         Object.keys(activeTokens).forEach(token => {
-          if (activeTokens[token].id === user.id) {
+          if (activeTokens[token].user && activeTokens[token].user.id === user.id) {
             delete activeTokens[token];
           }
         });
@@ -1059,30 +1152,59 @@ exports.handler = async (event, context) => {
         };
       }
       
-      // Scan users table for matches (in production, use a search index)
-      const result = await dynamodb.scan({
-        TableName: USERS_TABLE,
-        FilterExpression: 'contains(#name, :query) OR contains(email, :query)',
-        ExpressionAttributeNames: {
-          '#name': 'name'
-        },
-        ExpressionAttributeValues: {
-          ':query': query.toLowerCase()
-        }
-      }).promise();
-      
-      const results = result.Items.map(u => ({
-        id: u.id,
-        name: u.name,
-        email: u.email,
-        performer_type: u.performer_type
-      }));
-      
-      return {
-        statusCode: 200,
-        headers: corsHeaders,
-        body: JSON.stringify(results)
-      };
+      try {
+        // Scan users table and filter in JavaScript for case-insensitive search
+        console.log('Searching users with query:', query);
+        const result = await dynamodb.scan({
+          TableName: USERS_TABLE
+        }).promise();
+        
+        console.log('Total users found:', result.Items.length);
+        
+        const queryLower = query.toLowerCase();
+        const filteredUsers = result.Items.filter(u => {
+          const name = (u.name || '').toLowerCase();
+          const email = (u.email || '').toLowerCase();
+          const performerType = (u.performer_type || '').toLowerCase();
+          
+          const matches = name.includes(queryLower) || 
+                         email.includes(queryLower) || 
+                         performerType.includes(queryLower);
+          
+          if (matches) {
+            console.log('Match found:', { name: u.name, email: u.email, performer_type: u.performer_type });
+          }
+          
+          return matches;
+        });
+        
+        console.log('Filtered users:', filteredUsers.length);
+        
+        const results = filteredUsers
+          .filter(u => u.id !== user.id) // Exclude current user from results
+          .map(u => ({
+            id: u.id,
+            name: u.name,
+            email: u.email,
+            performer_type: u.performer_type
+          }))
+          .slice(0, 20); // Limit to 20 results
+        
+        console.log('Final results:', results.length);
+        
+        return {
+          statusCode: 200,
+          headers: corsHeaders,
+          body: JSON.stringify(results)
+        };
+      } catch (error) {
+        console.error('User search error:', error);
+        return {
+          statusCode: 500,
+          headers: corsHeaders,
+          body: JSON.stringify({ message: 'Search failed', error: error.message })
+        };
+      }
     }
     
     // Reorder signups endpoint
@@ -1228,8 +1350,13 @@ exports.handler = async (event, context) => {
       
       const { password: _, ...userResponse } = updatedUserResult.Item;
       
-      // Update token
-      activeTokens[Object.keys(activeTokens).find(token => activeTokens[token].id === user.id)] = updatedUserResult.Item;
+      // Update token with new user data while preserving expiration
+      const userTokenKey = Object.keys(activeTokens).find(token => 
+        activeTokens[token].user && activeTokens[token].user.id === user.id
+      );
+      if (userTokenKey && activeTokens[userTokenKey]) {
+        activeTokens[userTokenKey].user = updatedUserResult.Item;
+      }
       
       return {
         statusCode: 200,
