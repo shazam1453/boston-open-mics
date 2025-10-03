@@ -707,23 +707,19 @@ export default function EventDetail() {
 
             {/* Host Controls */}
             {isHost && event.event_status !== 'finished' && (
-              <div className="flex flex-col sm:flex-row gap-2 sm:gap-3">
+              <div className="space-y-3 sm:space-y-0 sm:flex sm:flex-row sm:gap-3">
                 {/* Edit Event and Add Participants - Available for all non-finished events */}
                 <button
                   onClick={() => setShowEditEventForm(true)}
-                  className="btn btn-secondary flex-1 sm:flex-none"
+                  className="btn btn-secondary w-full sm:w-auto py-3 px-4 text-base font-medium"
                 >
-                  <span className="sm:hidden">✏️</span>
-                  <span className="hidden sm:inline">✏️ Edit Event</span>
-                  <span className="sm:hidden">Edit</span>
+                  ✏️ Edit Event
                 </button>
                 <button
                   onClick={() => setShowAddParticipantsModal(true)}
-                  className="btn bg-purple-600 text-white hover:bg-purple-700 flex-1 sm:flex-none"
+                  className="btn bg-purple-600 text-white hover:bg-purple-700 w-full sm:w-auto py-3 px-4 text-base font-medium"
                 >
-                  <span className="sm:hidden">👥</span>
-                  <span className="hidden sm:inline">👥 Add Participants</span>
-                  <span className="sm:hidden">Add</span>
+                  👥 Add Participants
                 </button>
                 
                 {/* Event Status Controls */}
@@ -731,7 +727,7 @@ export default function EventDetail() {
                   <button
                     onClick={handleFinishEvent}
                     disabled={submitting}
-                    className="btn bg-red-600 text-white hover:bg-red-700 flex-1 sm:flex-none"
+                    className="btn bg-red-600 text-white hover:bg-red-700 w-full sm:w-auto py-3 px-4 text-base font-medium"
                   >
                     {submitting ? 'Finishing...' : 'Finish Event'}
                   </button>
@@ -739,7 +735,7 @@ export default function EventDetail() {
                   <button
                     onClick={handleStartEvent}
                     disabled={submitting}
-                    className="btn btn-primary flex-1 sm:flex-none"
+                    className="btn btn-primary w-full sm:w-auto py-3 px-4 text-base font-medium"
                   >
                     {submitting ? 'Starting...' : 'Start Event'}
                   </button>
@@ -1572,10 +1568,10 @@ export default function EventDetail() {
 
       {/* Add Performer Modal */}
       {showAddPerformerForm && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-lg p-4 sm:p-6 w-full max-w-md max-h-[90vh] overflow-y-auto">
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-3 sm:p-4 z-50">
+          <div className="bg-white rounded-xl p-5 sm:p-6 w-full max-w-sm sm:max-w-md max-h-[85vh] overflow-y-auto shadow-2xl">
             <h3 className="text-lg font-semibold mb-4">Add Walk-in Performer</h3>
-            <form onSubmit={handleAddPerformer} className="space-y-4">
+            <form onSubmit={handleAddPerformer} className="space-y-5">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   Performer Name *
@@ -1630,10 +1626,10 @@ export default function EventDetail() {
                 />
               </div>
               
-              <div className="flex flex-col sm:flex-row gap-3 pt-4">
+              <div className="flex flex-col sm:flex-row gap-4 pt-6">
                 <button 
                   type="submit" 
-                  className="btn btn-primary flex-1 order-2 sm:order-1"
+                  className="btn btn-primary flex-1 order-2 sm:order-1 py-3 px-4 text-base font-medium"
                   disabled={submitting}
                 >
                   {submitting ? 'Adding...' : 'Add Performer'}
@@ -1641,7 +1637,7 @@ export default function EventDetail() {
                 <button
                   type="button"
                   onClick={() => setShowAddPerformerForm(false)}
-                  className="btn btn-secondary flex-1 order-1 sm:order-2"
+                  className="btn btn-secondary flex-1 order-1 sm:order-2 py-3 px-4 text-base font-medium"
                   disabled={submitting}
                 >
                   Cancel
@@ -1654,10 +1650,10 @@ export default function EventDetail() {
 
       {/* Add Participants Modal */}
       {showAddParticipantsModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-lg p-4 sm:p-6 w-full max-w-md max-h-[90vh] overflow-y-auto">
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-3 sm:p-4 z-50">
+          <div className="bg-white rounded-xl p-5 sm:p-6 w-full max-w-sm sm:max-w-md max-h-[85vh] overflow-y-auto shadow-2xl">
             <h3 className="text-lg font-semibold mb-4">Add Participants</h3>
-            <form onSubmit={handleAddParticipants} className="space-y-4">
+            <form onSubmit={handleAddParticipants} className="space-y-5">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   Performer Name *
@@ -1712,10 +1708,10 @@ export default function EventDetail() {
                 />
               </div>
               
-              <div className="flex flex-col sm:flex-row gap-3 pt-4">
+              <div className="flex flex-col sm:flex-row gap-4 pt-6">
                 <button 
                   type="submit" 
-                  className="btn btn-primary flex-1 order-2 sm:order-1"
+                  className="btn btn-primary flex-1 order-2 sm:order-1 py-3 px-4 text-base font-medium"
                   disabled={submitting}
                 >
                   {submitting ? 'Adding...' : 'Add Participant'}
@@ -1723,7 +1719,7 @@ export default function EventDetail() {
                 <button
                   type="button"
                   onClick={() => setShowAddParticipantsModal(false)}
-                  className="btn btn-secondary flex-1 order-1 sm:order-2"
+                  className="btn btn-secondary flex-1 order-1 sm:order-2 py-3 px-4 text-base font-medium"
                   disabled={submitting}
                 >
                   Cancel
@@ -1736,10 +1732,10 @@ export default function EventDetail() {
 
       {/* Edit Event Modal */}
       {showEditEventForm && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-lg p-4 sm:p-6 w-full max-w-md max-h-[90vh] overflow-y-auto">
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-3 sm:p-4 z-50">
+          <div className="bg-white rounded-xl p-5 sm:p-6 w-full max-w-sm sm:max-w-md max-h-[85vh] overflow-y-auto shadow-2xl">
             <h3 className="text-lg font-semibold mb-4">Edit Event</h3>
-            <form onSubmit={handleEditEvent} className="space-y-4">
+            <form onSubmit={handleEditEvent} className="space-y-5">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   Event Title *
@@ -1874,10 +1870,10 @@ export default function EventDetail() {
                 </div>
               )}
               
-              <div className="flex flex-col sm:flex-row gap-3 pt-4">
+              <div className="flex flex-col sm:flex-row gap-4 pt-6">
                 <button 
                   type="submit" 
-                  className="btn btn-primary flex-1 order-2 sm:order-1"
+                  className="btn btn-primary flex-1 order-2 sm:order-1 py-3 px-4 text-base font-medium"
                   disabled={submitting}
                 >
                   {submitting ? 'Updating...' : 'Update Event'}
@@ -1885,7 +1881,7 @@ export default function EventDetail() {
                 <button
                   type="button"
                   onClick={() => setShowEditEventForm(false)}
-                  className="btn btn-secondary flex-1 order-1 sm:order-2"
+                  className="btn btn-secondary flex-1 order-1 sm:order-2 py-3 px-4 text-base font-medium"
                   disabled={submitting}
                 >
                   Cancel
@@ -1898,12 +1894,12 @@ export default function EventDetail() {
 
       {/* Sign-up Form Modal */}
       {showSignupForm && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-lg p-4 sm:p-6 w-full max-w-md max-h-[90vh] overflow-y-auto">
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-3 sm:p-4 z-50">
+          <div className="bg-white rounded-xl p-5 sm:p-6 w-full max-w-sm sm:max-w-md max-h-[85vh] overflow-y-auto shadow-2xl">
             <h3 className="text-lg font-semibold mb-4">
               {isHost ? 'Add Myself as Performer' : 'Sign Up to Perform'}
             </h3>
-            <form onSubmit={handleSignup} className="space-y-4">
+            <form onSubmit={handleSignup} className="space-y-5">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   Performer Name *
@@ -1947,10 +1943,10 @@ export default function EventDetail() {
                 />
               </div>
               
-              <div className="flex flex-col sm:flex-row gap-3 pt-4">
+              <div className="flex flex-col sm:flex-row gap-4 pt-6">
                 <button 
                   type="submit" 
-                  className="btn btn-primary flex-1 order-2 sm:order-1"
+                  className="btn btn-primary flex-1 order-2 sm:order-1 py-3 px-4 text-base font-medium"
                   disabled={submitting}
                 >
                   {submitting ? 'Signing Up...' : 'Sign Me Up!'}
@@ -1958,7 +1954,7 @@ export default function EventDetail() {
                 <button
                   type="button"
                   onClick={() => setShowSignupForm(false)}
-                  className="btn btn-secondary flex-1 order-1 sm:order-2"
+                  className="btn btn-secondary flex-1 order-1 sm:order-2 py-3 px-4 text-base font-medium"
                   disabled={submitting}
                 >
                   Cancel
@@ -1971,25 +1967,25 @@ export default function EventDetail() {
 
       {/* Create Group Chat Modal */}
       {showCreateGroupChat && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-lg p-4 sm:p-6 w-full max-w-md max-h-[90vh] overflow-y-auto">
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-3 sm:p-4 z-50">
+          <div className="bg-white rounded-xl p-5 sm:p-6 w-full max-w-sm sm:max-w-md max-h-[85vh] overflow-y-auto shadow-2xl">
             <h3 className="text-lg font-semibold mb-4">Create Event Group Chat</h3>
             <p className="text-gray-600 mb-6">
               Create a group chat for this event where all participants can communicate. 
               Only signed-up performers will be able to join.
             </p>
-            <div className="flex flex-col sm:flex-row gap-3">
+            <div className="flex flex-col sm:flex-row gap-4 pt-4">
               <button
                 onClick={handleCreateGroupChat}
                 disabled={joiningGroupChat}
-                className="btn btn-primary flex-1 order-2 sm:order-1"
+                className="btn btn-primary flex-1 order-2 sm:order-1 py-3 px-4 text-base font-medium"
               >
                 {joiningGroupChat ? 'Creating...' : 'Create Chat'}
               </button>
               <button
                 type="button"
                 onClick={() => setShowCreateGroupChat(false)}
-                className="btn btn-secondary flex-1 order-1 sm:order-2"
+                className="btn btn-secondary flex-1 order-1 sm:order-2 py-3 px-4 text-base font-medium"
               >
                 Cancel
               </button>
@@ -2000,10 +1996,10 @@ export default function EventDetail() {
 
       {/* Add Walk-in Modal */}
       {showWalkInForm && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-lg p-4 sm:p-6 w-full max-w-md max-h-[90vh] overflow-y-auto">
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-3 sm:p-4 z-50">
+          <div className="bg-white rounded-xl p-5 sm:p-6 w-full max-w-sm sm:max-w-md max-h-[85vh] overflow-y-auto shadow-2xl">
             <h3 className="text-lg font-semibold mb-4">Add Walk-in Performer</h3>
-            <form onSubmit={handleAddWalkIn} className="space-y-4">
+            <form onSubmit={handleAddWalkIn} className="space-y-5">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   Performer Name *
@@ -2061,10 +2057,10 @@ export default function EventDetail() {
                 />
               </div>
               
-              <div className="flex flex-col sm:flex-row gap-3">
+              <div className="flex flex-col sm:flex-row gap-4 pt-4">
                 <button
                   type="submit"
-                  className="btn btn-primary flex-1 order-2 sm:order-1"
+                  className="btn btn-primary flex-1 order-2 sm:order-1 py-3 px-4 text-base font-medium"
                   disabled={submitting}
                 >
                   {submitting ? 'Adding...' : 'Add Walk-in'}
@@ -2072,7 +2068,7 @@ export default function EventDetail() {
                 <button
                   type="button"
                   onClick={() => setShowWalkInForm(false)}
-                  className="btn btn-secondary flex-1 order-1 sm:order-2"
+                  className="btn btn-secondary flex-1 order-1 sm:order-2 py-3 px-4 text-base font-medium"
                   disabled={submitting}
                 >
                   Cancel
