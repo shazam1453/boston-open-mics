@@ -4,13 +4,13 @@
   "description": "Frontend for Boston Open Mics platform",
   "private": true,
   "dependencies": {
+    "@headlessui/react": "^1.7.13",
+    "@heroicons/react": "^2.0.16",
+    "axios": "^1.3.4",
+    "date-fns": "^2.30.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
-    "react-router-dom": "^6.8.1",
-    "axios": "^1.3.4",
-    "date-fns": "^2.29.3",
-    "@headlessui/react": "^1.7.13",
-    "@heroicons/react": "^2.0.16"
+    "react-router-dom": "^6.8.1"
   },
   "devDependencies": {
     "@types/react": "^18.0.28",

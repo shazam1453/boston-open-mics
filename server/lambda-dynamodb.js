@@ -15,6 +15,8 @@ const USERS_TABLE = process.env.USERS_TABLE;
 const VENUES_TABLE = process.env.VENUES_TABLE;
 const EVENTS_TABLE = process.env.EVENTS_TABLE;
 const SIGNUPS_TABLE = process.env.SIGNUPS_TABLE;
+const CONVERSATIONS_TABLE = process.env.CONVERSATIONS_TABLE;
+const MESSAGES_TABLE = process.env.MESSAGES_TABLE;
 
 // Active tokens (in memory - in production, use Redis or DynamoDB)
 const activeTokens = global.activeTokens || {};
@@ -177,6 +179,13 @@ exports.handler = async (event, context) => {
             ],
             invitations: [
               'POST /api/invitations/send'
+            ],
+            chat: [
+              'GET /api/chat/conversations',
+              'POST /api/chat/conversations',
+              'GET /api/chat/conversations/{id}/messages',
+              'POST /api/chat/conversations/{id}/messages',
+              'PUT /api/chat/messages/{id}/read'
             ]
           }
         })
@@ -1835,6 +1844,449 @@ Questions? Contact ${inviterName} at ${inviterEmail}
           sentAt: new Date().toISOString()
         })
       };
+    }
+
+    // ===== CHAT ENDPOINTS =====
+    
+    // Get user's conversations
+    if (path === '/api/chat/conversations' && httpMethod === 'GET') {
+      const user = authenticate();
+      if (!user) {
+        return {
+          statusCode: 401,
+          headers: corsHeaders,
+          body: JSON.stringify({ message: 'Unauthorized' })
+        };
+      }
+
+      try {
+        // Get conversations where user is participant_1
+        const conversations1 = await dynamodb.query({
+          TableName: CONVERSATIONS_TABLE,
+          IndexName: 'Participant1Index',
+          KeyConditionExpression: 'participant_1_id = :userId',
+          ExpressionAttributeValues: {
+            ':userId': user.id
+          }
+        }).promise();
+
+        // Get conversations where user is participant_2
+        const conversations2 = await dynamodb.query({
+          TableName: CONVERSATIONS_TABLE,
+          IndexName: 'Participant2Index',
+          KeyConditionExpression: 'participant_2_id = :userId',
+          ExpressionAttributeValues: {
+            ':userId': user.id
+          }
+        }).promise();
+
+        // Combine and deduplicate conversations
+        const allConversations = [...conversations1.Items, ...conversations2.Items];
+        const uniqueConversations = allConversations.filter((conv, index, self) => 
+          index === self.findIndex(c => c.id === conv.id)
+        );
+
+        // Get other participant details for each conversation
+        const conversationsWithDetails = await Promise.all(
+          uniqueConversations.map(async (conv) => {
+            const otherUserId = conv.participant_1_id === user.id ? 
+              conv.participant_2_id : conv.participant_1_id;
+            
+            // Get other user details
+            const otherUser = await dynamodb.get({
+              TableName: USERS_TABLE,
+              Key: { id: otherUserId }
+            }).promise();
+
+            // Get last message if exists
+            let lastMessage = null;
+            if (conv.last_message_id) {
+              const lastMsg = await dynamodb.get({
+                TableName: MESSAGES_TABLE,
+                Key: { id: conv.last_message_id }
+              }).promise();
+              lastMessage = lastMsg.Item || null;
+            }
+
+            return {
+              ...conv,
+              other_user: otherUser.Item || { id: otherUserId, name: 'Unknown User' },
+              last_message: lastMessage
+            };
+          })
+        );
+
+        // Sort by last activity
+        conversationsWithDetails.sort((a, b) => 
+          new Date(b.updated_at) - new Date(a.updated_at)
+        );
+
+        return {
+          statusCode: 200,
+          headers: corsHeaders,
+          body: JSON.stringify(conversationsWithDetails)
+        };
+      } catch (error) {
+        console.error('Error fetching conversations:', error);
+        return {
+          statusCode: 500,
+          headers: corsHeaders,
+          body: JSON.stringify({ message: 'Failed to fetch conversations' })
+        };
+      }
+    }
+
+    // Start a new conversation
+    if (path === '/api/chat/conversations' && httpMethod === 'POST') {
+      const user = authenticate();
+      if (!user) {
+        return {
+          statusCode: 401,
+          headers: corsHeaders,
+          body: JSON.stringify({ message: 'Unauthorized' })
+        };
+      }
+
+      const { other_user_id } = requestBody;
+      
+      if (!other_user_id) {
+        return {
+          statusCode: 400,
+          headers: corsHeaders,
+          body: JSON.stringify({ message: 'other_user_id is required' })
+        };
+      }
+
+      if (other_user_id === user.id) {
+        return {
+          statusCode: 400,
+          headers: corsHeaders,
+          body: JSON.stringify({ message: 'Cannot start conversation with yourself' })
+        };
+      }
+
+      try {
+        // Check if conversation already exists
+        const existingConv1 = await dynamodb.query({
+          TableName: CONVERSATIONS_TABLE,
+          IndexName: 'Participant1Index',
+          KeyConditionExpression: 'participant_1_id = :userId',
+          FilterExpression: 'participant_2_id = :otherUserId',
+          ExpressionAttributeValues: {
+            ':userId': user.id,
+            ':otherUserId': other_user_id
+          }
+        }).promise();
+
+        const existingConv2 = await dynamodb.query({
+          TableName: CONVERSATIONS_TABLE,
+          IndexName: 'Participant1Index',
+          KeyConditionExpression: 'participant_1_id = :otherUserId',
+          FilterExpression: 'participant_2_id = :userId',
+          ExpressionAttributeValues: {
+            ':userId': user.id,
+            ':otherUserId': other_user_id
+          }
+        }).promise();
+
+        if (existingConv1.Items.length > 0) {
+          return {
+            statusCode: 200,
+            headers: corsHeaders,
+            body: JSON.stringify(existingConv1.Items[0])
+          };
+        }
+
+        if (existingConv2.Items.length > 0) {
+          return {
+            statusCode: 200,
+            headers: corsHeaders,
+            body: JSON.stringify(existingConv2.Items[0])
+          };
+        }
+
+        // Create new conversation
+        const conversationId = uuidv4();
+        const now = new Date().toISOString();
+
+        const conversation = {
+          id: conversationId,
+          participant_1_id: user.id,
+          participant_2_id: other_user_id,
+          created_at: now,
+          updated_at: now,
+          last_message_id: null
+        };
+
+        await dynamodb.put({
+          TableName: CONVERSATIONS_TABLE,
+          Item: conversation
+        }).promise();
+
+        return {
+          statusCode: 201,
+          headers: corsHeaders,
+          body: JSON.stringify(conversation)
+        };
+      } catch (error) {
+        console.error('Error creating conversation:', error);
+        return {
+          statusCode: 500,
+          headers: corsHeaders,
+          body: JSON.stringify({ message: 'Failed to create conversation' })
+        };
+      }
+    }
+
+    // Get messages for a conversation
+    if (path.match(/^\/api\/chat\/conversations\/[^\/]+\/messages$/) && httpMethod === 'GET') {
+      const user = authenticate();
+      if (!user) {
+        return {
+          statusCode: 401,
+          headers: corsHeaders,
+          body: JSON.stringify({ message: 'Unauthorized' })
+        };
+      }
+
+      const conversationId = path.split('/')[4];
+      const limit = parseInt(queryStringParameters?.limit || '50');
+      const lastMessageId = queryStringParameters?.lastMessageId;
+
+      try {
+        // Verify user is part of this conversation
+        const conversation = await dynamodb.get({
+          TableName: CONVERSATIONS_TABLE,
+          Key: { id: conversationId }
+        }).promise();
+
+        if (!conversation.Item) {
+          return {
+            statusCode: 404,
+            headers: corsHeaders,
+            body: JSON.stringify({ message: 'Conversation not found' })
+          };
+        }
+
+        if (conversation.Item.participant_1_id !== user.id && 
+            conversation.Item.participant_2_id !== user.id) {
+          return {
+            statusCode: 403,
+            headers: corsHeaders,
+            body: JSON.stringify({ message: 'Access denied' })
+          };
+        }
+
+        // Get messages for this conversation
+        let queryParams = {
+          TableName: MESSAGES_TABLE,
+          IndexName: 'ConversationIndex',
+          KeyConditionExpression: 'conversation_id = :conversationId',
+          ExpressionAttributeValues: {
+            ':conversationId': conversationId
+          },
+          ScanIndexForward: false, // Most recent first
+          Limit: limit
+        };
+
+        if (lastMessageId) {
+          // For pagination - get messages before this timestamp
+          const lastMessage = await dynamodb.get({
+            TableName: MESSAGES_TABLE,
+            Key: { id: lastMessageId }
+          }).promise();
+          
+          if (lastMessage.Item) {
+            queryParams.ExclusiveStartKey = {
+              conversation_id: conversationId,
+              timestamp: lastMessage.Item.timestamp,
+              id: lastMessageId
+            };
+          }
+        }
+
+        const messages = await dynamodb.query(queryParams).promise();
+
+        return {
+          statusCode: 200,
+          headers: corsHeaders,
+          body: JSON.stringify({
+            messages: messages.Items.reverse(), // Oldest first for display
+            hasMore: !!messages.LastEvaluatedKey
+          })
+        };
+      } catch (error) {
+        console.error('Error fetching messages:', error);
+        return {
+          statusCode: 500,
+          headers: corsHeaders,
+          body: JSON.stringify({ message: 'Failed to fetch messages' })
+        };
+      }
+    }
+
+    // Send a message
+    if (path.match(/^\/api\/chat\/conversations\/[^\/]+\/messages$/) && httpMethod === 'POST') {
+      const user = authenticate();
+      if (!user) {
+        return {
+          statusCode: 401,
+          headers: corsHeaders,
+          body: JSON.stringify({ message: 'Unauthorized' })
+        };
+      }
+
+      const conversationId = path.split('/')[4];
+      const { message_text } = requestBody;
+
+      if (!message_text || message_text.trim().length === 0) {
+        return {
+          statusCode: 400,
+          headers: corsHeaders,
+          body: JSON.stringify({ message: 'message_text is required' })
+        };
+      }
+
+      if (message_text.length > 1000) {
+        return {
+          statusCode: 400,
+          headers: corsHeaders,
+          body: JSON.stringify({ message: 'Message too long (max 1000 characters)' })
+        };
+      }
+
+      try {
+        // Verify user is part of this conversation
+        const conversation = await dynamodb.get({
+          TableName: CONVERSATIONS_TABLE,
+          Key: { id: conversationId }
+        }).promise();
+
+        if (!conversation.Item) {
+          return {
+            statusCode: 404,
+            headers: corsHeaders,
+            body: JSON.stringify({ message: 'Conversation not found' })
+          };
+        }
+
+        if (conversation.Item.participant_1_id !== user.id && 
+            conversation.Item.participant_2_id !== user.id) {
+          return {
+            statusCode: 403,
+            headers: corsHeaders,
+            body: JSON.stringify({ message: 'Access denied' })
+          };
+        }
+
+        // Create message
+        const messageId = uuidv4();
+        const now = new Date().toISOString();
+        const recipientId = conversation.Item.participant_1_id === user.id ? 
+          conversation.Item.participant_2_id : conversation.Item.participant_1_id;
+
+        const message = {
+          id: messageId,
+          conversation_id: conversationId,
+          sender_id: user.id,
+          recipient_id: recipientId,
+          message_text: message_text.trim(),
+          timestamp: now,
+          read_at: null
+        };
+
+        // Save message
+        await dynamodb.put({
+          TableName: MESSAGES_TABLE,
+          Item: message
+        }).promise();
+
+        // Update conversation's last message
+        await dynamodb.update({
+          TableName: CONVERSATIONS_TABLE,
+          Key: { id: conversationId },
+          UpdateExpression: 'SET last_message_id = :messageId, updated_at = :updatedAt',
+          ExpressionAttributeValues: {
+            ':messageId': messageId,
+            ':updatedAt': now
+          }
+        }).promise();
+
+        return {
+          statusCode: 201,
+          headers: corsHeaders,
+          body: JSON.stringify(message)
+        };
+      } catch (error) {
+        console.error('Error sending message:', error);
+        return {
+          statusCode: 500,
+          headers: corsHeaders,
+          body: JSON.stringify({ message: 'Failed to send message' })
+        };
+      }
+    }
+
+    // Mark message as read
+    if (path.match(/^\/api\/chat\/messages\/[^\/]+\/read$/) && httpMethod === 'PUT') {
+      const user = authenticate();
+      if (!user) {
+        return {
+          statusCode: 401,
+          headers: corsHeaders,
+          body: JSON.stringify({ message: 'Unauthorized' })
+        };
+      }
+
+      const messageId = path.split('/')[4];
+
+      try {
+        // Get message
+        const message = await dynamodb.get({
+          TableName: MESSAGES_TABLE,
+          Key: { id: messageId }
+        }).promise();
+
+        if (!message.Item) {
+          return {
+            statusCode: 404,
+            headers: corsHeaders,
+            body: JSON.stringify({ message: 'Message not found' })
+          };
+        }
+
+        // Only recipient can mark as read
+        if (message.Item.recipient_id !== user.id) {
+          return {
+            statusCode: 403,
+            headers: corsHeaders,
+            body: JSON.stringify({ message: 'Access denied' })
+          };
+        }
+
+        // Mark as read
+        await dynamodb.update({
+          TableName: MESSAGES_TABLE,
+          Key: { id: messageId },
+          UpdateExpression: 'SET read_at = :readAt',
+          ExpressionAttributeValues: {
+            ':readAt': new Date().toISOString()
+          }
+        }).promise();
+
+        return {
+          statusCode: 200,
+          headers: corsHeaders,
+          body: JSON.stringify({ message: 'Message marked as read' })
+        };
+      } catch (error) {
+        console.error('Error marking message as read:', error);
+        return {
+          statusCode: 500,
+          headers: corsHeaders,
+          body: JSON.stringify({ message: 'Failed to mark message as read' })
+        };
+      }
     }
     
     // 404 for unmatched routes

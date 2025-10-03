@@ -14,6 +14,8 @@ provider:
     VENUES_TABLE: ${self:service}-${opt:stage, self:provider.stage}-venues
     EVENTS_TABLE: ${self:service}-${opt:stage, self:provider.stage}-events
     SIGNUPS_TABLE: ${self:service}-${opt:stage, self:provider.stage}-signups
+    CONVERSATIONS_TABLE: ${self:service}-${opt:stage, self:provider.stage}-conversations
+    MESSAGES_TABLE: ${self:service}-${opt:stage, self:provider.stage}-messages
     SES_FROM_EMAIL: ${env:SES_FROM_EMAIL, 'noreply@bostonopenmic.com'}
     SES_REGION: ${opt:region, self:provider.region}
     FROM_EMAIL: ${env:FROM_EMAIL, 'noreply@bostonopenmic.com'}
@@ -42,9 +44,13 @@ provider:
             - "arn:aws:dynamodb:${opt:region, self:provider.region}:*:table/${self:provider.environment.VENUES_TABLE}"
             - "arn:aws:dynamodb:${opt:region, self:provider.region}:*:table/${self:provider.environment.EVENTS_TABLE}"
             - "arn:aws:dynamodb:${opt:region, self:provider.region}:*:table/${self:provider.environment.SIGNUPS_TABLE}"
+            - "arn:aws:dynamodb:${opt:region, self:provider.region}:*:table/${self:provider.environment.CONVERSATIONS_TABLE}"
+            - "arn:aws:dynamodb:${opt:region, self:provider.region}:*:table/${self:provider.environment.MESSAGES_TABLE}"
             - "arn:aws:dynamodb:${opt:region, self:provider.region}:*:table/${self:provider.environment.USERS_TABLE}/index/*"
             - "arn:aws:dynamodb:${opt:region, self:provider.region}:*:table/${self:provider.environment.EVENTS_TABLE}/index/*"
             - "arn:aws:dynamodb:${opt:region, self:provider.region}:*:table/${self:provider.environment.SIGNUPS_TABLE}/index/*"
+            - "arn:aws:dynamodb:${opt:region, self:provider.region}:*:table/${self:provider.environment.CONVERSATIONS_TABLE}/index/*"
+            - "arn:aws:dynamodb:${opt:region, self:provider.region}:*:table/${self:provider.environment.MESSAGES_TABLE}/index/*"
         - Effect: Allow
           Action:
             - ses:SendEmail
@@ -187,6 +193,68 @@ resources:
           - IndexName: UserIndex
             KeySchema:
               - AttributeName: user_id
+                KeyType: HASH
+            Projection:
+              ProjectionType: ALL
+        BillingMode: PAY_PER_REQUEST
+
+    ConversationsTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: ${self:provider.environment.CONVERSATIONS_TABLE}
+        AttributeDefinitions:
+          - AttributeName: id
+            AttributeType: S
+          - AttributeName: participant_1_id
+            AttributeType: S
+          - AttributeName: participant_2_id
+            AttributeType: S
+        KeySchema:
+          - AttributeName: id
+            KeyType: HASH
+        GlobalSecondaryIndexes:
+          - IndexName: Participant1Index
+            KeySchema:
+              - AttributeName: participant_1_id
+                KeyType: HASH
+            Projection:
+              ProjectionType: ALL
+          - IndexName: Participant2Index
+            KeySchema:
+              - AttributeName: participant_2_id
+                KeyType: HASH
+            Projection:
+              ProjectionType: ALL
+        BillingMode: PAY_PER_REQUEST
+
+    MessagesTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: ${self:provider.environment.MESSAGES_TABLE}
+        AttributeDefinitions:
+          - AttributeName: id
+            AttributeType: S
+          - AttributeName: conversation_id
+            AttributeType: S
+          - AttributeName: timestamp
+            AttributeType: S
+          - AttributeName: sender_id
+            AttributeType: S
+        KeySchema:
+          - AttributeName: id
+            KeyType: HASH
+        GlobalSecondaryIndexes:
+          - IndexName: ConversationIndex
+            KeySchema:
+              - AttributeName: conversation_id
+                KeyType: HASH
+              - AttributeName: timestamp
+                KeyType: RANGE
+            Projection:
+              ProjectionType: ALL
+          - IndexName: SenderIndex
+            KeySchema:
+              - AttributeName: sender_id
                 KeyType: HASH
             Projection:
               ProjectionType: ALL

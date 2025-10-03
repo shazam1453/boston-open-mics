@@ -228,4 +228,26 @@ export const recurringEventsAPI = {
   deactivate: (id: number) => api.delete(`/recurring-events/${id}`),
 }
 
+// Chat API
+export const chatAPI = {
+  getConversations: () => api.get<any[]>('/chat/conversations'),
+  
+  startConversation: (otherUserId: string | number) => 
+    api.post<any>('/chat/conversations', { other_user_id: otherUserId }),
+  
+  getMessages: (conversationId: string, limit?: number, lastMessageId?: string) => {
+    const params = new URLSearchParams();
+    if (limit) params.append('limit', limit.toString());
+    if (lastMessageId) params.append('lastMessageId', lastMessageId);
+    const query = params.toString() ? `?${params.toString()}` : '';
+    return api.get<{ messages: any[], hasMore: boolean }>(`/chat/conversations/${conversationId}/messages${query}`);
+  },
+  
+  sendMessage: (conversationId: string, messageText: string) =>
+    api.post<any>(`/chat/conversations/${conversationId}/messages`, { message_text: messageText }),
+  
+  markMessageAsRead: (messageId: string) =>
+    api.put<{ message: string }>(`/chat/messages/${messageId}/read`)
+}
+
 export default api

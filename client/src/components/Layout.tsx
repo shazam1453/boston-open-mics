@@ -30,6 +30,14 @@ export default function Layout({ children }: LayoutProps) {
                 >
                   Events
                 </Link>
+                {user && (
+                  <Link
+                    to="/chat"
+                    className="text-gray-700 hover:text-primary-600 px-3 py-2 text-sm font-medium"
+                  >
+                    Messages
+                  </Link>
+                )}
               </div>
             </div>
             
@@ -81,6 +89,14 @@ export default function Layout({ children }: LayoutProps) {
             >
               📅 Events
             </Link>
+            {user && (
+              <Link
+                to="/chat"
+                className="block text-gray-700 hover:text-primary-600 px-3 py-2 text-sm font-medium"
+              >
+                💬 Messages
+              </Link>
+            )}
           </div>
         </div>
       </nav>

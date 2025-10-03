@@ -10,6 +10,7 @@ import Profile from './pages/Profile'
 import Dashboard from './pages/Dashboard'
 import Admin from './pages/Admin'
 import ResetPasswordPage from './pages/ResetPasswordPage'
+import Chat from './pages/Chat'
 
 function App() {
   return (
@@ -22,6 +23,7 @@ function App() {
           <Route path="/login" element={<Login />} />
           <Route path="/register" element={<Register />} />
           <Route path="/reset-password" element={<ResetPasswordPage />} />
+          <Route path="/chat" element={<Chat />} />
           <Route path="/profile" element={<Profile />} />
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/admin" element={<Admin />} />
