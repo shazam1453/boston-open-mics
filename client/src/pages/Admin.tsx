@@ -13,10 +13,20 @@ export default function Admin() {
   const [loadingData, setLoadingData] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
+  const [hasInitiallyLoaded, setHasInitiallyLoaded] = useState(false)
 
   // Simple loading check - no useEffect
   if (loading) {
     return <div className="flex justify-center items-center h-64">Loading...</div>
+  }
+
+  // Auto-load data on first render only (not in useEffect to avoid infinite loops)
+  if (!loading && !hasInitiallyLoaded && user && ['admin', 'super_admin', 'moderator'].includes(user.role || '')) {
+    setHasInitiallyLoaded(true)
+    // Trigger initial load after a brief delay to avoid render conflicts
+    setTimeout(() => {
+      loadCurrentTabData()
+    }, 50)
   }
 
   if (!user || !['admin', 'super_admin', 'moderator'].includes(user.role || '')) {
