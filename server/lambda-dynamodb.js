@@ -264,6 +264,8 @@ exports.handler = async (event, context) => {
             venues: [
               'GET /api/venues',
               'POST /api/venues',
+              'PUT /api/venues/{id}',
+              'DELETE /api/venues/{id}',
               'GET /api/venues/owner/{ownerId}'
             ],
             signups: [
@@ -1133,6 +1135,113 @@ exports.handler = async (event, context) => {
           body: JSON.stringify({ message: 'Failed to get events' })
         };
       }
+    }
+    
+    // Update venue
+    if (path.match(/^\/api\/venues\/[^\/]+$/) && httpMethod === 'PUT') {
+      const user = await authenticate();
+      if (!user) {
+        return {
+          statusCode: 401,
+          headers: corsHeaders,
+          body: JSON.stringify({ message: 'Unauthorized' })
+        };
+      }
+      
+      const venueId = path.split('/')[3];
+      
+      // Check if venue exists and user is owner
+      const venueResult = await dynamodb.get({
+        TableName: VENUES_TABLE,
+        Key: { id: venueId }
+      }).promise();
+      
+      if (!venueResult.Item) {
+        return {
+          statusCode: 404,
+          headers: corsHeaders,
+          body: JSON.stringify({ message: 'Venue not found' })
+        };
+      }
+      
+      if (venueResult.Item.owner_id !== user.id && user.role !== 'admin' && user.role !== 'super_admin') {
+        return {
+          statusCode: 403,
+          headers: corsHeaders,
+          body: JSON.stringify({ message: 'You can only edit your own venues' })
+        };
+      }
+      
+      const { name, address, description, capacity, phone, email } = requestBody;
+      
+      const updatedVenue = {
+        ...venueResult.Item,
+        name: name || venueResult.Item.name,
+        address: address || venueResult.Item.address,
+        description: description !== undefined ? description : venueResult.Item.description,
+        capacity: capacity !== undefined ? (capacity ? parseInt(capacity) : null) : venueResult.Item.capacity,
+        phone: phone !== undefined ? phone : venueResult.Item.phone,
+        email: email !== undefined ? email : venueResult.Item.email,
+        updated_at: new Date().toISOString()
+      };
+      
+      await dynamodb.put({
+        TableName: VENUES_TABLE,
+        Item: updatedVenue
+      }).promise();
+      
+      return {
+        statusCode: 200,
+        headers: corsHeaders,
+        body: JSON.stringify({ venue: updatedVenue })
+      };
+    }
+    
+    // Delete venue
+    if (path.match(/^\/api\/venues\/[^\/]+$/) && httpMethod === 'DELETE') {
+      const user = await authenticate();
+      if (!user) {
+        return {
+          statusCode: 401,
+          headers: corsHeaders,
+          body: JSON.stringify({ message: 'Unauthorized' })
+        };
+      }
+      
+      const venueId = path.split('/')[3];
+      
+      // Check if venue exists and user is owner
+      const venueResult = await dynamodb.get({
+        TableName: VENUES_TABLE,
+        Key: { id: venueId }
+      }).promise();
+      
+      if (!venueResult.Item) {
+        return {
+          statusCode: 404,
+          headers: corsHeaders,
+          body: JSON.stringify({ message: 'Venue not found' })
+        };
+      }
+      
+      if (venueResult.Item.owner_id !== user.id && user.role !== 'admin' && user.role !== 'super_admin') {
+        return {
+          statusCode: 403,
+          headers: corsHeaders,
+          body: JSON.stringify({ message: 'You can only delete your own venues' })
+        };
+      }
+      
+      await dynamodb.delete({
+        TableName: VENUES_TABLE,
+        Key: { id: venueId }
+      }).promise();
+      
+      return {
+        statusCode: 200,
+        headers: corsHeaders,
+        body: JSON.stringify({ message: 'Venue deleted successfully' })
+      };
     }
     
     // Signups endpoints
