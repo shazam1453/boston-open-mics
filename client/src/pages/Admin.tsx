@@ -133,49 +133,44 @@ export default function Admin() {
     }
   }
 
-  // Single useEffect to handle all data loading
-  useEffect(() => {
-    // Don't do anything if still loading or no user
-    if (loading || !user) return
-    
-    // Check permissions
-    if (!['admin', 'super_admin', 'moderator'].includes(user.role || '')) {
+  // Manual data loading functions
+  const loadCurrentTabData = async () => {
+    if (!user || !['admin', 'super_admin', 'moderator'].includes(user.role || '')) {
       return
     }
     
-    console.log('Admin page - user:', user, 'role:', user?.role)
+    setLoadingData(true)
+    setError(null)
     
-    // Load data based on active tab
-    const loadData = async () => {
-      setLoadingData(true)
-      setError(null)
-      
-      try {
-        if (activeTab === 'users') {
-          const response = await adminAPI.getAllUsers()
-          setUsers(response.data || [])
-        } else if (activeTab === 'events') {
-          const response = await adminAPI.getAllEvents()
-          setEvents(response.data || [])
-        } else if (activeTab === 'venues') {
-          const response = await adminAPI.getAllVenues()
-          setVenues(response.data || [])
-        }
-      } catch (error: any) {
-        console.error(`Error loading ${activeTab}:`, error)
-        setError(error.response?.data?.message || `Failed to load ${activeTab}`)
-        
-        // Reset the appropriate state
-        if (activeTab === 'users') setUsers([])
-        else if (activeTab === 'events') setEvents([])
-        else if (activeTab === 'venues') setVenues([])
-      } finally {
-        setLoadingData(false)
+    try {
+      if (activeTab === 'users') {
+        const response = await adminAPI.getAllUsers()
+        setUsers(response.data || [])
+      } else if (activeTab === 'events') {
+        const response = await adminAPI.getAllEvents()
+        setEvents(response.data || [])
+      } else if (activeTab === 'venues') {
+        const response = await adminAPI.getAllVenues()
+        setVenues(response.data || [])
       }
+    } catch (error: any) {
+      console.error(`Error loading ${activeTab}:`, error)
+      setError(error.response?.data?.message || `Failed to load ${activeTab}`)
+      
+      // Reset the appropriate state
+      if (activeTab === 'users') setUsers([])
+      else if (activeTab === 'events') setEvents([])
+      else if (activeTab === 'venues') setVenues([])
+    } finally {
+      setLoadingData(false)
     }
-    
-    loadData()
-  }, [activeTab, user?.id, loading]) // Minimal dependencies
+  }
+
+  // Handle tab change with manual loading
+  const handleTabChange = (tab: 'users' | 'events' | 'venues') => {
+    setActiveTab(tab)
+    // Don't automatically load - user will click refresh button
+  }
 
   // Reset search when switching tabs
   useEffect(() => {
@@ -236,7 +231,7 @@ export default function Admin() {
       <div className="border-b border-gray-200 mb-6">
         <nav className="-mb-px flex space-x-8">
           <button
-            onClick={() => setActiveTab('users')}
+            onClick={() => handleTabChange('users')}
             className={`py-2 px-1 border-b-2 font-medium text-sm ${
               activeTab === 'users'
                 ? 'border-red-500 text-red-600'
@@ -246,7 +241,7 @@ export default function Admin() {
             Users ({users.length})
           </button>
           <button
-            onClick={() => setActiveTab('events')}
+            onClick={() => handleTabChange('events')}
             className={`py-2 px-1 border-b-2 font-medium text-sm ${
               activeTab === 'events'
                 ? 'border-red-500 text-red-600'
@@ -256,7 +251,7 @@ export default function Admin() {
             Events ({events.length})
           </button>
           <button
-            onClick={() => setActiveTab('venues')}
+            onClick={() => handleTabChange('venues')}
             className={`py-2 px-1 border-b-2 font-medium text-sm ${
               activeTab === 'venues'
                 ? 'border-red-500 text-red-600'
@@ -268,9 +263,9 @@ export default function Admin() {
         </nav>
       </div>
 
-      {/* Search Bar */}
-      <div className="mb-6">
-        <div className="relative max-w-md">
+      {/* Search Bar and Refresh Button */}
+      <div className="mb-6 flex items-center space-x-4">
+        <div className="relative max-w-md flex-1">
           <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
             <svg className="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
@@ -288,14 +283,24 @@ export default function Admin() {
             className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md leading-5 bg-white placeholder-gray-500 focus:outline-none focus:placeholder-gray-400 focus:ring-1 focus:ring-red-500 focus:border-red-500"
           />
         </div>
-        {searchQuery && (
-          <p className="mt-2 text-sm text-gray-600">
+        <button
+          onClick={loadCurrentTabData}
+          disabled={loadingData}
+          className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          {loadingData ? 'Loading...' : 'Refresh'}
+        </button>
+      </div>
+      
+      {searchQuery && (
+        <div className="mb-4">
+          <p className="text-sm text-gray-600">
             {activeTab === 'users' && `Showing ${filteredUsers.length} of ${users.length} users`}
             {activeTab === 'events' && `Showing ${filteredEvents.length} of ${events.length} events`}
             {activeTab === 'venues' && `Showing ${filteredVenues.length} of ${venues.length} venues`}
           </p>
-        )}
-      </div>
+        </div>
+      )}
 
       {loadingData ? (
         <div className="flex justify-center items-center h-64">
