@@ -3249,11 +3249,11 @@ Questions? Contact ${inviterName} at ${inviterEmail}
         const eventId = path.split('/')[3];
         const { performerName, performanceName, performanceType, notes } = requestBody;
 
-        if (!performerName || !performanceName) {
+        if (!performerName) {
           return {
             statusCode: 400,
             headers: corsHeaders,
-            body: JSON.stringify({ message: 'Performer name and performance name are required' })
+            body: JSON.stringify({ message: 'Performer name is required' })
           };
         }
 

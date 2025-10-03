@@ -208,7 +208,13 @@ export default function EventDetail() {
     
     setSubmitting(true)
     try {
-      const response = await signupsAPI.addManualPerformer(event.id, addParticipantsForm)
+      // Use performer name as performance name if performance name is empty
+      const performanceData = {
+        ...addParticipantsForm,
+        performanceName: addParticipantsForm.performanceName || addParticipantsForm.performerName
+      }
+      
+      const response = await signupsAPI.addManualPerformer(event.id, performanceData)
       setSignups(prev => [...prev, response.data.signup])
       setShowAddParticipantsModal(false)
       setAddParticipantsForm({
@@ -1668,14 +1674,14 @@ export default function EventDetail() {
               
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Performance Name *
+                  Performance Name
                 </label>
                 <input
                   type="text"
                   value={addParticipantsForm.performanceName}
                   onChange={(e) => setAddParticipantsForm(prev => ({ ...prev, performanceName: e.target.value }))}
                   className="input"
-                  required
+                  placeholder="Optional - can be added later"
                 />
               </div>
               
