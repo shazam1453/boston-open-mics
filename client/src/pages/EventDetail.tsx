@@ -1259,6 +1259,23 @@ export default function EventDetail() {
                 </h2>
                 
                 <div className="flex space-x-2">
+                  {isHost && event.event_status === 'scheduled' && (
+                    <>
+                      <button
+                        onClick={() => setShowAddPerformerForm(true)}
+                        className="btn btn-secondary text-sm"
+                      >
+                        Add Performer
+                      </button>
+                      <button
+                        onClick={() => handleSavePerformerOrder()}
+                        disabled={submitting}
+                        className="btn btn-primary text-sm"
+                      >
+                        Save Order
+                      </button>
+                    </>
+                  )}
                   {isHost && event.event_status === 'live' && event.signup_list_mode === 'random_order' && (
                     <button
                       onClick={handleRandomizeOrder}
@@ -1292,57 +1309,113 @@ export default function EventDetail() {
                   No performers signed up yet.
                 </div>
               ) : (
-                <div className="space-y-3">
-                  {sortedSignups.map((signup, index) => (
-                    <div
-                      key={signup.id}
-                      className={`flex items-center justify-between p-4 rounded-lg border ${
-                        signup.is_finished ? 'bg-gray-50 border-gray-200' : 'bg-white border-gray-300'
-                      }`}
-                    >
-                      <div className="flex items-center space-x-4">
-                        <div className="text-lg font-semibold text-gray-500 w-8">
-                          #{index + 1}
-                        </div>
-                        <div>
-                          <h3 className={`font-semibold ${signup.is_finished ? 'line-through text-gray-500' : 'text-gray-900'}`}>
-                            {signup.performance_name}
-                          </h3>
-                          <p className={`text-sm ${signup.is_finished ? 'text-gray-400' : 'text-gray-600'}`}>
-                            {signup.user_name || 'Walk-in performer'} • {signup.performance_type}
-                          </p>
-                          {signup.notes && (
-                            <p className={`text-sm mt-1 ${signup.is_finished ? 'text-gray-400' : 'text-gray-500'}`}>
-                              {signup.notes}
-                            </p>
-                          )}
-                        </div>
-                      </div>
-                      
-                      {isHost && event.event_status === 'live' && (
-                        <div className="flex space-x-2">
-                          {signup.is_finished ? (
-                            <button
-                              onClick={() => handleUnmarkFinished(signup.id)}
-                              disabled={submitting}
-                              className="btn btn-secondary text-sm"
-                            >
-                              Undo
-                            </button>
-                          ) : (
-                            <button
-                              onClick={() => handleMarkFinished(signup.id)}
-                              disabled={submitting}
-                              className="btn btn-primary text-sm"
-                            >
-                              Mark Finished
-                            </button>
-                          )}
-                        </div>
-                      )}
+                <>
+                  {isHost && event.event_status === 'scheduled' && (
+                    <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                      <p className="text-sm text-blue-700">
+                        <strong>Host Controls:</strong> Drag and drop performers to reorder them, adjust individual performance lengths, and click "Save Order" to save changes.
+                      </p>
                     </div>
-                  ))}
-                </div>
+                  )}
+                  <div className="space-y-3">
+                    {sortedSignups.map((signup, index) => (
+                      <div
+                        key={signup.id}
+                        className={`p-4 rounded-lg border ${
+                          signup.is_finished ? 'bg-gray-50 border-gray-200' : 'bg-white border-gray-300'
+                        } ${isHost && event.event_status === 'scheduled' ? 'cursor-move hover:shadow-md transition-shadow' : ''}`}
+                        draggable={!!(isHost && event.event_status === 'scheduled')}
+                        onDragStart={(e) => handleDragStart(e, signup.id)}
+                        onDragOver={handleDragOver}
+                        onDrop={(e) => handleDrop(e, index)}
+                      >
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center space-x-4">
+                            <div className="flex items-center space-x-2">
+                              {isHost && event.event_status === 'scheduled' && (
+                                <div className="text-gray-400 cursor-move">
+                                  ⋮⋮
+                                </div>
+                              )}
+                              <div className="text-lg font-semibold text-gray-500 w-8">
+                                #{index + 1}
+                              </div>
+                            </div>
+                            <div>
+                              <h3 className={`font-semibold ${signup.is_finished ? 'line-through text-gray-500' : 'text-gray-900'}`}>
+                                {signup.performance_name}
+                              </h3>
+                              <p className={`text-sm ${signup.is_finished ? 'text-gray-400' : 'text-gray-600'}`}>
+                                {signup.user_name || 'Walk-in performer'} • {signup.performance_type}
+                              </p>
+                              {signup.notes && (
+                                <p className={`text-sm mt-1 ${signup.is_finished ? 'text-gray-400' : 'text-gray-500'}`}>
+                                  {signup.notes}
+                                </p>
+                              )}
+                            </div>
+                          </div>
+                      
+                          <div className="flex items-center space-x-3">
+                            {/* Performance Length Control */}
+                            {isHost && event.event_status === 'scheduled' ? (
+                              <div className="flex items-center space-x-2">
+                                <label className="text-sm text-gray-600">Length:</label>
+                                <input
+                                  type="number"
+                                  min="1"
+                                  max="30"
+                                  value={signup.individual_performance_length || event.performance_length || 5}
+                                  onChange={(e) => handleUpdatePerformerLength(signup.id, parseInt(e.target.value))}
+                                  className="w-16 px-2 py-1 text-sm border border-gray-300 rounded"
+                                />
+                                <span className="text-sm text-gray-500">min</span>
+                              </div>
+                            ) : event.event_status === 'live' || event.event_status === 'finished' ? (
+                              <div className="text-sm text-gray-500">
+                                {signup.individual_performance_length || event.performance_length || 5} min
+                              </div>
+                            ) : null}
+
+                            {/* Remove Performer Button for Scheduled Events */}
+                            {isHost && event.event_status === 'scheduled' && (
+                              <button
+                                onClick={() => handleRemovePerformer(signup.id)}
+                                className="text-red-500 hover:text-red-700 text-sm"
+                                title="Remove performer"
+                              >
+                                Remove
+                              </button>
+                            )}
+
+                            {/* Live Event Controls */}
+                            {isHost && event.event_status === 'live' && (
+                              <div className="flex space-x-2">
+                                {signup.is_finished ? (
+                                  <button
+                                    onClick={() => handleUnmarkFinished(signup.id)}
+                                    disabled={submitting}
+                                    className="btn btn-secondary text-sm"
+                                  >
+                                    Undo
+                                  </button>
+                                ) : (
+                                  <button
+                                    onClick={() => handleMarkFinished(signup.id)}
+                                    disabled={submitting}
+                                    className="btn btn-primary text-sm"
+                                  >
+                                    Mark Finished
+                                  </button>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                    </div>
+                    ))}
+                  </div>
+                </>
               )}
             </>
           )}
