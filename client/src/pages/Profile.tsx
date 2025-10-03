@@ -306,6 +306,9 @@ export default function Profile() {
         amenities: []
       })
       
+      // Switch to venues tab to show the newly created venue
+      setActiveTab('venues')
+      
       // Also reload data to ensure consistency
       await loadUserData()
     } catch (error: any) {
