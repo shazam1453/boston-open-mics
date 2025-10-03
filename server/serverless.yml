@@ -16,6 +16,8 @@ provider:
     SIGNUPS_TABLE: ${self:service}-${opt:stage, self:provider.stage}-signups
     SES_FROM_EMAIL: ${env:SES_FROM_EMAIL, 'noreply@bostonopenmic.com'}
     SES_REGION: ${opt:region, self:provider.region}
+    FROM_EMAIL: ${env:FROM_EMAIL, 'noreply@bostonopenmic.com'}
+    PLATFORM_URL: ${env:PLATFORM_URL, 'https://boston-mic-list.netlify.app'}
   
   # IAM role permissions
   iam:

@@ -1,14 +1,14 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../hooks/useAuth'
-import ResetPassword from '../components/ResetPassword'
+import RequestPasswordReset from '../components/RequestPasswordReset'
 
 export default function Login() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [showResetPassword, setShowResetPassword] = useState(false)
+  const [showRequestReset, setShowRequestReset] = useState(false)
   
   const { login } = useAuth()
   const navigate = useNavigate()
@@ -80,7 +80,7 @@ export default function Login() {
         <div className="mt-6 text-center space-y-2">
           <button
             type="button"
-            onClick={() => setShowResetPassword(true)}
+            onClick={() => setShowRequestReset(true)}
             className="text-sm text-primary-600 hover:text-primary-700 underline"
           >
             Forgot your password?
@@ -95,13 +95,13 @@ export default function Login() {
         </div>
       </div>
       
-      {showResetPassword && (
-        <ResetPassword
-          onClose={() => setShowResetPassword(false)}
+      {showRequestReset && (
+        <RequestPasswordReset
+          onClose={() => setShowRequestReset(false)}
           onSuccess={() => {
-            setShowResetPassword(false)
+            setShowRequestReset(false)
             setError(null)
-            alert('Password reset successfully! You can now log in with your new password.')
+            alert('Password reset email sent! Check your inbox for a reset link.')
           }}
         />
       )}

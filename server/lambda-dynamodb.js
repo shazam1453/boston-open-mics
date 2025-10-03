@@ -1,6 +1,10 @@
 const { v4: uuidv4 } = require('uuid');
 const crypto = require('crypto');
 
+// Import email and token services
+const emailService = require('./services/emailService');
+const tokenService = require('./services/tokenService');
+
 // Use AWS SDK from Lambda runtime environment (no bundling needed)
 const AWS = require('aws-sdk');
 const dynamodb = new AWS.DynamoDB.DocumentClient();
@@ -136,6 +140,7 @@ exports.handler = async (event, context) => {
               'GET /api/auth/me',
               'PUT /api/auth/profile',
               'PUT /api/auth/change-password',
+              'POST /api/auth/request-password-reset',
               'POST /api/auth/reset-password',
               'DELETE /api/auth/delete-account'
             ],
@@ -425,15 +430,89 @@ exports.handler = async (event, context) => {
       }
     }
     
-    // Reset password endpoint (for forgotten passwords)
-    if (path === '/api/auth/reset-password' && httpMethod === 'POST') {
-      const { email, newPassword } = requestBody;
+    // Request password reset endpoint (sends email)
+    if (path === '/api/auth/request-password-reset' && httpMethod === 'POST') {
+      const { email } = requestBody;
       
-      if (!email || !newPassword) {
+      if (!email) {
         return {
           statusCode: 400,
           headers: corsHeaders,
-          body: JSON.stringify({ message: 'Email and new password are required' })
+          body: JSON.stringify({ message: 'Email is required' })
+        };
+      }
+      
+      try {
+        // Find user by email
+        const result = await dynamodb.query({
+          TableName: USERS_TABLE,
+          IndexName: 'EmailIndex',
+          KeyConditionExpression: 'email = :email',
+          ExpressionAttributeValues: {
+            ':email': email
+          }
+        }).promise();
+        
+        // Always return success to prevent email enumeration attacks
+        if (result.Items.length === 0) {
+          return {
+            statusCode: 200,
+            headers: corsHeaders,
+            body: JSON.stringify({ 
+              message: 'If an account with that email exists, a password reset link has been sent.'
+            })
+          };
+        }
+        
+        const user = result.Items[0];
+        
+        // Generate reset token
+        const resetToken = tokenService.generateResetToken();
+        tokenService.storeResetToken(email, resetToken);
+        
+        // Send password reset email
+        const emailResult = await emailService.sendPasswordResetEmail(
+          user.email,
+          user.name,
+          resetToken
+        );
+        
+        if (!emailResult.success) {
+          console.error('Failed to send password reset email:', emailResult.error);
+          return {
+            statusCode: 500,
+            headers: corsHeaders,
+            body: JSON.stringify({ message: 'Failed to send password reset email' })
+          };
+        }
+        
+        return {
+          statusCode: 200,
+          headers: corsHeaders,
+          body: JSON.stringify({ 
+            message: 'If an account with that email exists, a password reset link has been sent.',
+            emailSent: true
+          })
+        };
+      } catch (error) {
+        console.error('Error requesting password reset:', error);
+        return {
+          statusCode: 500,
+          headers: corsHeaders,
+          body: JSON.stringify({ message: 'Failed to process password reset request' })
+        };
+      }
+    }
+
+    // Reset password with token endpoint
+    if (path === '/api/auth/reset-password' && httpMethod === 'POST') {
+      const { token, newPassword } = requestBody;
+      
+      if (!token || !newPassword) {
+        return {
+          statusCode: 400,
+          headers: corsHeaders,
+          body: JSON.stringify({ message: 'Token and new password are required' })
         };
       }
       
@@ -446,6 +525,18 @@ exports.handler = async (event, context) => {
       }
       
       try {
+        // Validate reset token
+        const tokenValidation = tokenService.validateResetToken(token);
+        if (!tokenValidation.valid) {
+          return {
+            statusCode: 400,
+            headers: corsHeaders,
+            body: JSON.stringify({ message: tokenValidation.error })
+          };
+        }
+        
+        const email = tokenValidation.email;
+        
         // Find user by email
         const result = await dynamodb.query({
           TableName: USERS_TABLE,
@@ -1542,6 +1633,53 @@ exports.handler = async (event, context) => {
       };
     }
     
+    // Test email endpoint (for development/testing)
+    if (path === '/api/test-email' && httpMethod === 'POST') {
+      const user = authenticate();
+      if (!user) {
+        return {
+          statusCode: 401,
+          headers: corsHeaders,
+          body: JSON.stringify({ message: 'Unauthorized' })
+        };
+      }
+      
+      const { email } = requestBody;
+      const testEmail = email || user.email;
+      
+      try {
+        const result = await emailService.sendTestEmail(testEmail);
+        
+        if (!result.success) {
+          return {
+            statusCode: 500,
+            headers: corsHeaders,
+            body: JSON.stringify({ 
+              message: 'Failed to send test email',
+              error: result.error
+            })
+          };
+        }
+        
+        return {
+          statusCode: 200,
+          headers: corsHeaders,
+          body: JSON.stringify({ 
+            message: 'Test email sent successfully',
+            to: testEmail,
+            messageId: result.messageId
+          })
+        };
+      } catch (error) {
+        console.error('Error sending test email:', error);
+        return {
+          statusCode: 500,
+          headers: corsHeaders,
+          body: JSON.stringify({ message: 'Failed to send test email' })
+        };
+      }
+    }
+
     // Invitation endpoint
     if (path === '/api/invitations/send' && httpMethod === 'POST') {
       const user = authenticate();
