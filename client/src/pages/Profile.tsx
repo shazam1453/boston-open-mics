@@ -86,12 +86,16 @@ export default function Profile() {
     }
   }
 
-  const addPerformerInvite = (_performer: User) => {
-    // For booked mic events, we would add to an invite list
-    // For now, we'll just clear the search since this is in event creation
+  const addPerformerInvite = (performer: User) => {
+    // Check if performer is already in the list
+    if (selectedPerformers.some(p => p.id === performer.id)) {
+      return // Already added
+    }
+    
+    // Add performer to the invite list
+    setSelectedPerformers(prev => [...prev, performer])
     setPerformerSearch('')
     setPerformerResults([])
-    // TODO: Add to invited performers list when implementing booked mic functionality
   }
 
   // Email validation helper
@@ -140,11 +144,16 @@ export default function Profile() {
   const removeCohost = (cohostId: string | number) => {
     setSelectedCohosts(prev => prev.filter(c => c.id !== cohostId))
   }
+
+  const removePerformer = (performerId: string | number) => {
+    setSelectedPerformers(prev => prev.filter(p => p.id !== performerId))
+  }
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [cohostSearch, setCohostSearch] = useState('')
   const [cohostResults, setCohostResults] = useState<User[]>([])
   const [selectedCohosts, setSelectedCohosts] = useState<User[]>([])
+  const [selectedPerformers, setSelectedPerformers] = useState<User[]>([])
   const [searchingCohosts, setSearchingCohosts] = useState(false)
   
   // Separate state for performer search
@@ -359,7 +368,7 @@ export default function Profile() {
       // Handle co-hosts and invites based on event type
       if (eventForm.signupListMode === 'booked_mic') {
         // For booked mic events, send invites to selected performers
-        for (const performer of selectedCohosts) {
+        for (const performer of selectedPerformers) {
           try {
             await eventsAPI.sendInvite(createdEvent.id, performer.id)
           } catch (error) {
@@ -399,8 +408,11 @@ export default function Profile() {
         signupDeadline: '' // Time only, will be combined with event date
       })
       setSelectedCohosts([])
+      setSelectedPerformers([])
       setCohostSearch('')
       setCohostResults([])
+      setPerformerSearch('')
+      setPerformerResults([])
       setPerformerSearch('')
       setPerformerResults([])
       
@@ -2042,11 +2054,11 @@ export default function Profile() {
                       </p>
                       
                       {/* Selected Invites */}
-                      {selectedCohosts.length > 0 && (
+                      {selectedPerformers.length > 0 && (
                         <div className="mb-3">
                           <p className="text-sm font-medium text-gray-700 mb-2">Performers to invite:</p>
                           <div className="flex flex-wrap gap-2">
-                            {selectedCohosts.map(performer => (
+                            {selectedPerformers.map(performer => (
                               <div
                                 key={performer.id}
                                 className="flex items-center space-x-2 bg-green-100 text-green-800 px-3 py-1 rounded-full text-sm"
@@ -2054,7 +2066,7 @@ export default function Profile() {
                                 <span>{performer.name || 'Unknown User'}</span>
                                 <button
                                   type="button"
-                                  onClick={() => removeCohost(performer.id)}
+                                  onClick={() => removePerformer(performer.id)}
                                   className="text-green-600 hover:text-green-800"
                                 >
                                   ×
