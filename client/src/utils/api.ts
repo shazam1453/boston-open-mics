@@ -303,7 +303,10 @@ export const chatAPI = {
     api.post<{ message: string }>(`/events/${eventId}/chat/leave`),
 
   deleteEventGroupChat: (eventId: string | number) =>
-    api.delete<{ message: string }>(`/events/${eventId}/chat/delete`)
+    api.delete<{ message: string }>(`/events/${eventId}/chat/delete`),
+
+  deleteConversation: (conversationId: string) =>
+    api.delete<{ message: string }>(`/chat/conversations/${conversationId}`)
 }
 
 export default api

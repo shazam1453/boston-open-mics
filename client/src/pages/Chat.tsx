@@ -12,37 +12,119 @@ export default function Chat() {
   const [showStartChat, setShowStartChat] = useState(false)
   const [loadingConversations, setLoadingConversations] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [lastMessageIds, setLastMessageIds] = useState<{[key: string]: string}>({})
+  const [notificationPermission, setNotificationPermission] = useState<NotificationPermission>('default')
 
-  // Load conversations
-  const loadConversations = async () => {
+  // Request notification permission
+  const requestNotificationPermission = async () => {
+    if ('Notification' in window) {
+      const permission = await Notification.requestPermission()
+      setNotificationPermission(permission)
+    }
+  }
+
+  // Show notification for new message
+  const showNotification = (conversation: any, message: any) => {
+    if (notificationPermission === 'granted' && document.hidden) {
+      const title = conversation.type === 'group' 
+        ? `${conversation.title}: ${message.sender_name}`
+        : message.sender_name || 'New Message'
+      
+      const notification = new Notification(title, {
+        body: message.message_text,
+        icon: '/favicon.ico',
+        tag: `chat-${conversation.id}` // Prevents duplicate notifications
+      })
+
+      // Close notification after 5 seconds
+      setTimeout(() => notification.close(), 5000)
+
+      // Focus window when notification is clicked
+      notification.onclick = () => {
+        window.focus()
+        setSelectedConversation(conversation)
+        notification.close()
+      }
+    }
+  }
+
+  // Load conversations with smart refresh
+  const loadConversations = async (silent = false) => {
     try {
-      setLoadingConversations(true)
+      if (!silent) {
+        setLoadingConversations(true)
+      }
       const response = await chatAPI.getConversations()
-      setConversations(response.data)
+      const newConversations = response.data
+
+      // Check for new messages and show notifications
+      if (user && lastMessageIds && Object.keys(lastMessageIds).length > 0) {
+        newConversations.forEach((conversation: any) => {
+          const lastMessage = conversation.last_message
+          if (lastMessage && 
+              lastMessage.sender_id !== user.id.toString() && 
+              lastMessageIds[conversation.id] !== lastMessage.id) {
+            showNotification(conversation, lastMessage)
+          }
+        })
+      }
+
+      // Update last message IDs for notification tracking
+      const newLastMessageIds: {[key: string]: string} = {}
+      newConversations.forEach((conversation: any) => {
+        if (conversation.last_message) {
+          newLastMessageIds[conversation.id] = conversation.last_message.id
+        }
+      })
+      setLastMessageIds(newLastMessageIds)
+
+      setConversations(newConversations)
+      setError(null)
     } catch (error: any) {
       console.error('Failed to load conversations:', error)
-      setError('Failed to load conversations')
+      if (!silent) {
+        setError('Failed to load conversations')
+      }
     } finally {
-      setLoadingConversations(false)
+      if (!silent) {
+        setLoadingConversations(false)
+      }
     }
   }
 
   useEffect(() => {
     if (user) {
       loadConversations()
+      requestNotificationPermission()
     }
   }, [user])
 
-  // Poll for new messages every 5 seconds
+  // Smart polling for new messages
   useEffect(() => {
     if (!user) return
 
     const interval = setInterval(() => {
-      loadConversations()
-    }, 5000)
+      // Use silent refresh to avoid loading indicators
+      loadConversations(true)
+    }, 3000) // Reduced to 3 seconds for better responsiveness
 
     return () => clearInterval(interval)
-  }, [user])
+  }, [user, lastMessageIds])
+
+  // Faster polling when window is focused and chat is active
+  useEffect(() => {
+    if (!user || !selectedConversation) return
+
+    const handleVisibilityChange = () => {
+      if (!document.hidden) {
+        // Refresh immediately when user returns to tab
+        loadConversations(true)
+      }
+    }
+
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange)
+  }, [user, selectedConversation])
 
   const handleStartChat = async (otherUserId: string) => {
     try {
@@ -150,7 +232,11 @@ export default function Chat() {
               <ChatMessageView
                 conversation={selectedConversation}
                 currentUserId={user.id.toString()}
-                onMessageSent={loadConversations}
+                onMessageSent={() => loadConversations(true)}
+                onChatDeleted={() => {
+                  setSelectedConversation(null)
+                  loadConversations(true)
+                }}
               />
             </div>
           </div>

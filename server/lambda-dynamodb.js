@@ -3333,6 +3333,102 @@ Questions? Contact ${inviterName} at ${inviterEmail}
       }
     }
 
+    // Delete conversation (direct messages only)
+    if (path.match(/^\/api\/chat\/conversations\/[^\/]+$/) && httpMethod === 'DELETE') {
+      const user = await authenticate();
+      if (!user) {
+        return {
+          statusCode: 401,
+          headers: corsHeaders,
+          body: JSON.stringify({ message: 'Unauthorized' })
+        };
+      }
+
+      const conversationId = path.split('/')[4];
+
+      try {
+        // Get conversation to verify ownership
+        const conversation = await dynamodb.get({
+          TableName: CONVERSATIONS_TABLE,
+          Key: { id: conversationId }
+        }).promise();
+
+        if (!conversation.Item) {
+          return {
+            statusCode: 404,
+            headers: corsHeaders,
+            body: JSON.stringify({ message: 'Conversation not found' })
+          };
+        }
+
+        // Only allow deletion of direct messages by participants
+        if (conversation.Item.type === 'group') {
+          return {
+            statusCode: 400,
+            headers: corsHeaders,
+            body: JSON.stringify({ message: 'Cannot delete group chats. Use leave instead.' })
+          };
+        }
+
+        // Verify user is a participant
+        if (conversation.Item.participant_1_id !== user.id && 
+            conversation.Item.participant_2_id !== user.id) {
+          return {
+            statusCode: 403,
+            headers: corsHeaders,
+            body: JSON.stringify({ message: 'Access denied' })
+          };
+        }
+
+        // Delete all messages in the conversation
+        const messagesResult = await dynamodb.query({
+          TableName: MESSAGES_TABLE,
+          IndexName: 'ConversationIndex',
+          KeyConditionExpression: 'conversation_id = :conversationId',
+          ExpressionAttributeValues: {
+            ':conversationId': conversationId
+          }
+        }).promise();
+
+        // Delete messages in batches
+        if (messagesResult.Items.length > 0) {
+          const deleteRequests = messagesResult.Items.map(message => ({
+            DeleteRequest: {
+              Key: { id: message.id }
+            }
+          }));
+
+          for (let i = 0; i < deleteRequests.length; i += 25) {
+            const batch = deleteRequests.slice(i, i + 25);
+            await dynamodb.batchWrite({
+              RequestItems: {
+                [MESSAGES_TABLE]: batch
+              }
+            }).promise();
+          }
+        }
+
+        // Delete the conversation
+        await dynamodb.delete({
+          TableName: CONVERSATIONS_TABLE,
+          Key: { id: conversationId }
+        }).promise();
+
+        return {
+          statusCode: 200,
+          headers: corsHeaders,
+          body: JSON.stringify({ message: 'Conversation deleted successfully' })
+        };
+      } catch (error) {
+        console.error('Error deleting conversation:', error);
+        return {
+          statusCode: 500,
+          headers: corsHeaders,
+          body: JSON.stringify({ message: 'Failed to delete conversation' })
+        };
+      }
+    }
+
     // ===== EVENT GROUP CHAT ENDPOINTS =====
 
     // Create event group chat (host only)

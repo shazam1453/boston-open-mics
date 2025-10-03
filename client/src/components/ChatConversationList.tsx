@@ -30,7 +30,7 @@ export default function ChatConversationList({
         const otherUser = conversation.other_user
         const lastMessage = conversation.last_message
         const hasUnreadMessages = lastMessage && 
-          lastMessage.recipient_id === currentUserId && 
+          lastMessage.sender_id !== currentUserId && 
           !lastMessage.read_at
 
         // Display name and avatar logic
