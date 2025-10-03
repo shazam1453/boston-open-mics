@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useParams } from 'react-router-dom'
-import { eventsAPI, signupsAPI } from '../utils/api'
+import { eventsAPI, signupsAPI, chatAPI } from '../utils/api'
 import { useAuth } from '../hooks/useAuth'
 import { formatTime12Hour, formatDate, formatTimeOnly12Hour } from '../utils/dateTime'
 import { PERFORMANCE_TYPES } from '../constants/formOptions'
@@ -17,6 +17,8 @@ export default function EventDetail() {
   const [showAddPerformerForm, setShowAddPerformerForm] = useState(false)
   const [showSignupForm, setShowSignupForm] = useState(false)
   const [userSignup, setUserSignup] = useState<Signup | null>(null)
+
+  const [joiningGroupChat, setJoiningGroupChat] = useState(false)
   const [addPerformerForm, setAddPerformerForm] = useState({
     performanceName: '',
     performerName: '',
@@ -346,6 +348,22 @@ export default function EventDetail() {
     }
   }
 
+  const handleJoinGroupChat = async () => {
+    if (!event || !user) return
+    
+    setJoiningGroupChat(true)
+    try {
+      await chatAPI.joinEventGroupChat(event.id)
+      // Redirect to chat page
+      window.location.href = '/chat'
+    } catch (error: any) {
+      console.error('Error joining group chat:', error)
+      setError(error.response?.data?.message || 'Failed to join group chat')
+    } finally {
+      setJoiningGroupChat(false)
+    }
+  }
+
   const handleSavePerformerOrder = async () => {
     if (!event || !isHost) return
 
@@ -450,28 +468,43 @@ export default function EventDetail() {
             </div>
           </div>
           
-          {isHost && (
-            <div className="flex space-x-2">
-              {event.event_status === 'scheduled' && (
-                <button
-                  onClick={handleStartEvent}
-                  disabled={submitting}
-                  className="btn btn-primary"
-                >
-                  {submitting ? 'Starting...' : 'Start Event'}
-                </button>
-              )}
-              {event.event_status === 'live' && (
-                <button
-                  onClick={handleFinishEvent}
-                  disabled={submitting}
-                  className="btn bg-red-600 text-white hover:bg-red-700"
-                >
-                  {submitting ? 'Finishing...' : 'Finish Event'}
-                </button>
-              )}
-            </div>
-          )}
+          <div className="flex space-x-2">
+            {/* Group Chat Button - Available to signed up users and hosts */}
+            {user && (isHost || userSignup) && (
+              <button
+                onClick={handleJoinGroupChat}
+                disabled={joiningGroupChat}
+                className="btn bg-green-600 text-white hover:bg-green-700 flex items-center space-x-2"
+              >
+                <span>💬</span>
+                <span>{joiningGroupChat ? 'Joining...' : 'Event Chat'}</span>
+              </button>
+            )}
+            
+            {/* Host Controls */}
+            {isHost && (
+              <>
+                {event.event_status === 'scheduled' && (
+                  <button
+                    onClick={handleStartEvent}
+                    disabled={submitting}
+                    className="btn btn-primary"
+                  >
+                    {submitting ? 'Starting...' : 'Start Event'}
+                  </button>
+                )}
+                {event.event_status === 'live' && (
+                  <button
+                    onClick={handleFinishEvent}
+                    disabled={submitting}
+                    className="btn bg-red-600 text-white hover:bg-red-700"
+                  >
+                    {submitting ? 'Finishing...' : 'Finish Event'}
+                  </button>
+                )}
+              </>
+            )}
+          </div>
         </div>
 
         <div className="grid sm:grid-cols-1 lg:grid-cols-2 gap-6 lg:gap-8">

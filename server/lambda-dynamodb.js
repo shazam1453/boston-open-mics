@@ -17,6 +17,7 @@ const EVENTS_TABLE = process.env.EVENTS_TABLE;
 const SIGNUPS_TABLE = process.env.SIGNUPS_TABLE;
 const CONVERSATIONS_TABLE = process.env.CONVERSATIONS_TABLE;
 const MESSAGES_TABLE = process.env.MESSAGES_TABLE;
+const CONVERSATION_PARTICIPANTS_TABLE = process.env.CONVERSATION_PARTICIPANTS_TABLE;
 
 // Active tokens (in memory - in production, use Redis or DynamoDB)
 const activeTokens = global.activeTokens || {};
@@ -185,7 +186,10 @@ exports.handler = async (event, context) => {
               'POST /api/chat/conversations',
               'GET /api/chat/conversations/{id}/messages',
               'POST /api/chat/conversations/{id}/messages',
-              'PUT /api/chat/messages/{id}/read'
+              'PUT /api/chat/messages/{id}/read',
+              'GET /api/events/{id}/chat',
+              'POST /api/events/{id}/chat/join',
+              'POST /api/events/{id}/chat/leave'
             ]
           }
         })
@@ -801,6 +805,47 @@ exports.handler = async (event, context) => {
         TableName: EVENTS_TABLE,
         Item: newEvent
       }).promise();
+
+      // Create group chat for the event
+      try {
+        const groupChatId = uuidv4();
+        const groupChat = {
+          id: groupChatId,
+          type: 'group',
+          event_id: newEvent.id,
+          title: `${newEvent.title} - Event Chat`,
+          created_by: user.id,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+          last_message_id: null,
+          last_message_at: null
+        };
+
+        // Create the group conversation
+        await dynamodb.put({
+          TableName: CONVERSATIONS_TABLE,
+          Item: groupChat
+        }).promise();
+
+        // Add the event host as the first participant
+        const hostParticipant = {
+          id: uuidv4(),
+          conversation_id: groupChatId,
+          user_id: user.id,
+          joined_at: new Date().toISOString(),
+          role: 'admin'
+        };
+
+        await dynamodb.put({
+          TableName: CONVERSATION_PARTICIPANTS_TABLE,
+          Item: hostParticipant
+        }).promise();
+
+        console.log(`Created group chat ${groupChatId} for event ${newEvent.id}`);
+      } catch (error) {
+        console.error('Failed to create group chat for event:', error);
+        // Don't fail the event creation if group chat creation fails
+      }
 
       return {
         statusCode: 201,
@@ -1848,7 +1893,7 @@ Questions? Contact ${inviterName} at ${inviterEmail}
 
     // ===== CHAT ENDPOINTS =====
     
-    // Get user's conversations
+    // Get user's conversations (both direct and group chats)
     if (path === '/api/chat/conversations' && httpMethod === 'GET') {
       const user = authenticate();
       if (!user) {
@@ -1860,35 +1905,66 @@ Questions? Contact ${inviterName} at ${inviterEmail}
       }
 
       try {
-        // Get conversations where user is participant_1
+        const allConversations = [];
+
+        // Get direct conversations where user is participant_1
         const conversations1 = await dynamodb.query({
           TableName: CONVERSATIONS_TABLE,
           IndexName: 'Participant1Index',
           KeyConditionExpression: 'participant_1_id = :userId',
+          FilterExpression: 'attribute_not_exists(#type) OR #type = :directType',
+          ExpressionAttributeNames: {
+            '#type': 'type'
+          },
           ExpressionAttributeValues: {
-            ':userId': user.id
+            ':userId': user.id,
+            ':directType': 'direct'
           }
         }).promise();
 
-        // Get conversations where user is participant_2
+        // Get direct conversations where user is participant_2
         const conversations2 = await dynamodb.query({
           TableName: CONVERSATIONS_TABLE,
           IndexName: 'Participant2Index',
           KeyConditionExpression: 'participant_2_id = :userId',
+          FilterExpression: 'attribute_not_exists(#type) OR #type = :directType',
+          ExpressionAttributeNames: {
+            '#type': 'type'
+          },
+          ExpressionAttributeValues: {
+            ':userId': user.id,
+            ':directType': 'direct'
+          }
+        }).promise();
+
+        // Get group conversations where user is a participant
+        const userParticipations = await dynamodb.query({
+          TableName: CONVERSATION_PARTICIPANTS_TABLE,
+          IndexName: 'UserIndex',
+          KeyConditionExpression: 'user_id = :userId',
           ExpressionAttributeValues: {
             ':userId': user.id
           }
         }).promise();
 
-        // Combine and deduplicate conversations
-        const allConversations = [...conversations1.Items, ...conversations2.Items];
-        const uniqueConversations = allConversations.filter((conv, index, self) => 
-          index === self.findIndex(c => c.id === conv.id)
+        // Get group conversation details
+        const groupConversations = await Promise.all(
+          userParticipations.Items.map(async (participation) => {
+            const conv = await dynamodb.get({
+              TableName: CONVERSATIONS_TABLE,
+              Key: { id: participation.conversation_id }
+            }).promise();
+            return conv.Item;
+          })
         );
 
-        // Get other participant details for each conversation
-        const conversationsWithDetails = await Promise.all(
-          uniqueConversations.map(async (conv) => {
+        // Combine all conversations
+        const directConversations = [...conversations1.Items, ...conversations2.Items];
+        const validGroupConversations = groupConversations.filter(conv => conv);
+        
+        // Process direct conversations
+        const directConversationsWithDetails = await Promise.all(
+          directConversations.map(async (conv) => {
             const otherUserId = conv.participant_1_id === user.id ? 
               conv.participant_2_id : conv.participant_1_id;
             
@@ -1910,21 +1986,77 @@ Questions? Contact ${inviterName} at ${inviterEmail}
 
             return {
               ...conv,
+              type: 'direct',
               other_user: otherUser.Item || { id: otherUserId, name: 'Unknown User' },
-              last_message: lastMessage
+              last_message: lastMessage,
+              display_name: otherUser.Item?.name || 'Unknown User'
             };
           })
         );
 
-        // Sort by last activity
-        conversationsWithDetails.sort((a, b) => 
-          new Date(b.updated_at) - new Date(a.updated_at)
+        // Process group conversations
+        const groupConversationsWithDetails = await Promise.all(
+          validGroupConversations.map(async (conv) => {
+            // Get participant count
+            const participants = await dynamodb.query({
+              TableName: CONVERSATION_PARTICIPANTS_TABLE,
+              IndexName: 'ConversationIndex',
+              KeyConditionExpression: 'conversation_id = :conversationId',
+              ExpressionAttributeValues: {
+                ':conversationId': conv.id
+              }
+            }).promise();
+
+            // Get last message if exists
+            let lastMessage = null;
+            if (conv.last_message_id) {
+              const lastMsg = await dynamodb.get({
+                TableName: MESSAGES_TABLE,
+                Key: { id: conv.last_message_id }
+              }).promise();
+              lastMessage = lastMsg.Item || null;
+            }
+
+            // Get event details if it's an event group chat
+            let eventDetails = null;
+            if (conv.event_id) {
+              const event = await dynamodb.get({
+                TableName: EVENTS_TABLE,
+                Key: { id: conv.event_id }
+              }).promise();
+              eventDetails = event.Item;
+            }
+
+            return {
+              ...conv,
+              type: 'group',
+              participant_count: participants.Items.length,
+              last_message: lastMessage,
+              display_name: conv.title || `Group Chat (${participants.Items.length} members)`,
+              event: eventDetails
+            };
+          })
+        );
+
+        // Combine and sort all conversations
+        const allConversationsWithDetails = [
+          ...directConversationsWithDetails,
+          ...groupConversationsWithDetails
+        ];
+
+        // Remove duplicates and sort by last activity
+        const uniqueConversations = allConversationsWithDetails.filter((conv, index, self) => 
+          index === self.findIndex(c => c.id === conv.id)
+        );
+
+        uniqueConversations.sort((a, b) => 
+          new Date(b.updated_at || b.created_at) - new Date(a.updated_at || a.created_at)
         );
 
         return {
           statusCode: 200,
           headers: corsHeaders,
-          body: JSON.stringify(conversationsWithDetails)
+          body: JSON.stringify(uniqueConversations)
         };
       } catch (error) {
         console.error('Error fetching conversations:', error);
@@ -2285,6 +2417,344 @@ Questions? Contact ${inviterName} at ${inviterEmail}
           statusCode: 500,
           headers: corsHeaders,
           body: JSON.stringify({ message: 'Failed to mark message as read' })
+        };
+      }
+    }
+
+    // ===== EVENT GROUP CHAT ENDPOINTS =====
+
+    // Get event group chat
+    if (path.match(/^\/api\/events\/[^\/]+\/chat$/) && httpMethod === 'GET') {
+      const user = authenticate();
+      if (!user) {
+        return {
+          statusCode: 401,
+          headers: corsHeaders,
+          body: JSON.stringify({ message: 'Unauthorized' })
+        };
+      }
+
+      try {
+        const eventId = path.split('/')[3];
+
+        // Find the group chat for this event
+        const chatResult = await dynamodb.query({
+          TableName: CONVERSATIONS_TABLE,
+          IndexName: 'EventIndex',
+          KeyConditionExpression: 'event_id = :eventId',
+          ExpressionAttributeValues: {
+            ':eventId': eventId
+          }
+        }).promise();
+
+        if (chatResult.Items.length === 0) {
+          return {
+            statusCode: 404,
+            headers: corsHeaders,
+            body: JSON.stringify({ message: 'Event group chat not found' })
+          };
+        }
+
+        const groupChat = chatResult.Items[0];
+
+        // Check if user is a participant
+        const participantResult = await dynamodb.query({
+          TableName: CONVERSATION_PARTICIPANTS_TABLE,
+          IndexName: 'ConversationIndex',
+          KeyConditionExpression: 'conversation_id = :conversationId',
+          FilterExpression: 'user_id = :userId',
+          ExpressionAttributeValues: {
+            ':conversationId': groupChat.id,
+            ':userId': user.id
+          }
+        }).promise();
+
+        if (participantResult.Items.length === 0) {
+          return {
+            statusCode: 403,
+            headers: corsHeaders,
+            body: JSON.stringify({ message: 'You are not a participant in this group chat' })
+          };
+        }
+
+        // Get all participants
+        const allParticipants = await dynamodb.query({
+          TableName: CONVERSATION_PARTICIPANTS_TABLE,
+          IndexName: 'ConversationIndex',
+          KeyConditionExpression: 'conversation_id = :conversationId',
+          ExpressionAttributeValues: {
+            ':conversationId': groupChat.id
+          }
+        }).promise();
+
+        // Get participant user details
+        const participantUsers = [];
+        for (const participant of allParticipants.Items) {
+          const userResult = await dynamodb.get({
+            TableName: USERS_TABLE,
+            Key: { id: participant.user_id }
+          }).promise();
+          if (userResult.Item) {
+            participantUsers.push({
+              id: userResult.Item.id,
+              name: userResult.Item.name,
+              email: userResult.Item.email,
+              role: participant.role || 'member'
+            });
+          }
+        }
+
+        return {
+          statusCode: 200,
+          headers: corsHeaders,
+          body: JSON.stringify({
+            conversation: {
+              ...groupChat,
+              participants: participantUsers,
+              participant_count: participantUsers.length
+            }
+          })
+        };
+      } catch (error) {
+        console.error('Error fetching event group chat:', error);
+        return {
+          statusCode: 500,
+          headers: corsHeaders,
+          body: JSON.stringify({ message: 'Failed to fetch event group chat' })
+        };
+      }
+    }
+
+    // Join event group chat
+    if (path.match(/^\/api\/events\/[^\/]+\/chat\/join$/) && httpMethod === 'POST') {
+      const user = authenticate();
+      if (!user) {
+        return {
+          statusCode: 401,
+          headers: corsHeaders,
+          body: JSON.stringify({ message: 'Unauthorized' })
+        };
+      }
+
+      try {
+        const eventId = path.split('/')[3];
+
+        // Check if user is signed up for the event or is the host
+        const eventResult = await dynamodb.get({
+          TableName: EVENTS_TABLE,
+          Key: { id: eventId }
+        }).promise();
+
+        if (!eventResult.Item) {
+          return {
+            statusCode: 404,
+            headers: corsHeaders,
+            body: JSON.stringify({ message: 'Event not found' })
+          };
+        }
+
+        const event = eventResult.Item;
+        const isHost = event.host_id === user.id;
+
+        // Check if user has a signup for this event
+        let hasSignup = false;
+        if (!isHost) {
+          const signupResult = await dynamodb.query({
+            TableName: SIGNUPS_TABLE,
+            IndexName: 'EventIndex',
+            KeyConditionExpression: 'event_id = :eventId',
+            FilterExpression: 'user_id = :userId',
+            ExpressionAttributeValues: {
+              ':eventId': eventId,
+              ':userId': user.id
+            }
+          }).promise();
+          hasSignup = signupResult.Items.length > 0;
+        }
+
+        if (!isHost && !hasSignup) {
+          return {
+            statusCode: 403,
+            headers: corsHeaders,
+            body: JSON.stringify({ message: 'You must be signed up for this event to join the group chat' })
+          };
+        }
+
+        // Find the group chat for this event
+        const chatResult = await dynamodb.query({
+          TableName: CONVERSATIONS_TABLE,
+          IndexName: 'EventIndex',
+          KeyConditionExpression: 'event_id = :eventId',
+          ExpressionAttributeValues: {
+            ':eventId': eventId
+          }
+        }).promise();
+
+        if (chatResult.Items.length === 0) {
+          return {
+            statusCode: 404,
+            headers: corsHeaders,
+            body: JSON.stringify({ message: 'Event group chat not found' })
+          };
+        }
+
+        const groupChat = chatResult.Items[0];
+
+        // Check if user is already a participant
+        const existingParticipant = await dynamodb.query({
+          TableName: CONVERSATION_PARTICIPANTS_TABLE,
+          IndexName: 'ConversationIndex',
+          KeyConditionExpression: 'conversation_id = :conversationId',
+          FilterExpression: 'user_id = :userId',
+          ExpressionAttributeValues: {
+            ':conversationId': groupChat.id,
+            ':userId': user.id
+          }
+        }).promise();
+
+        if (existingParticipant.Items.length > 0) {
+          return {
+            statusCode: 200,
+            headers: corsHeaders,
+            body: JSON.stringify({ message: 'Already a participant in this group chat' })
+          };
+        }
+
+        // Add user as participant
+        const participant = {
+          id: uuidv4(),
+          conversation_id: groupChat.id,
+          user_id: user.id,
+          joined_at: new Date().toISOString(),
+          role: isHost ? 'admin' : 'member'
+        };
+
+        await dynamodb.put({
+          TableName: CONVERSATION_PARTICIPANTS_TABLE,
+          Item: participant
+        }).promise();
+
+        // Send a system message about the user joining
+        const joinMessage = {
+          id: uuidv4(),
+          conversation_id: groupChat.id,
+          sender_id: 'system',
+          message_text: `${user.name} joined the group chat`,
+          timestamp: new Date().toISOString(),
+          message_type: 'system'
+        };
+
+        await dynamodb.put({
+          TableName: MESSAGES_TABLE,
+          Item: joinMessage
+        }).promise();
+
+        return {
+          statusCode: 200,
+          headers: corsHeaders,
+          body: JSON.stringify({ 
+            message: 'Successfully joined group chat',
+            conversation: groupChat
+          })
+        };
+      } catch (error) {
+        console.error('Error joining event group chat:', error);
+        return {
+          statusCode: 500,
+          headers: corsHeaders,
+          body: JSON.stringify({ message: 'Failed to join event group chat' })
+        };
+      }
+    }
+
+    // Leave event group chat
+    if (path.match(/^\/api\/events\/[^\/]+\/chat\/leave$/) && httpMethod === 'POST') {
+      const user = authenticate();
+      if (!user) {
+        return {
+          statusCode: 401,
+          headers: corsHeaders,
+          body: JSON.stringify({ message: 'Unauthorized' })
+        };
+      }
+
+      try {
+        const eventId = path.split('/')[3];
+
+        // Find the group chat for this event
+        const chatResult = await dynamodb.query({
+          TableName: CONVERSATIONS_TABLE,
+          IndexName: 'EventIndex',
+          KeyConditionExpression: 'event_id = :eventId',
+          ExpressionAttributeValues: {
+            ':eventId': eventId
+          }
+        }).promise();
+
+        if (chatResult.Items.length === 0) {
+          return {
+            statusCode: 404,
+            headers: corsHeaders,
+            body: JSON.stringify({ message: 'Event group chat not found' })
+          };
+        }
+
+        const groupChat = chatResult.Items[0];
+
+        // Find user's participation
+        const participantResult = await dynamodb.query({
+          TableName: CONVERSATION_PARTICIPANTS_TABLE,
+          IndexName: 'ConversationIndex',
+          KeyConditionExpression: 'conversation_id = :conversationId',
+          FilterExpression: 'user_id = :userId',
+          ExpressionAttributeValues: {
+            ':conversationId': groupChat.id,
+            ':userId': user.id
+          }
+        }).promise();
+
+        if (participantResult.Items.length === 0) {
+          return {
+            statusCode: 404,
+            headers: corsHeaders,
+            body: JSON.stringify({ message: 'You are not a participant in this group chat' })
+          };
+        }
+
+        const participant = participantResult.Items[0];
+
+        // Remove participant
+        await dynamodb.delete({
+          TableName: CONVERSATION_PARTICIPANTS_TABLE,
+          Key: { id: participant.id }
+        }).promise();
+
+        // Send a system message about the user leaving
+        const leaveMessage = {
+          id: uuidv4(),
+          conversation_id: groupChat.id,
+          sender_id: 'system',
+          message_text: `${user.name} left the group chat`,
+          timestamp: new Date().toISOString(),
+          message_type: 'system'
+        };
+
+        await dynamodb.put({
+          TableName: MESSAGES_TABLE,
+          Item: leaveMessage
+        }).promise();
+
+        return {
+          statusCode: 200,
+          headers: corsHeaders,
+          body: JSON.stringify({ message: 'Successfully left group chat' })
+        };
+      } catch (error) {
+        console.error('Error leaving event group chat:', error);
+        return {
+          statusCode: 500,
+          headers: corsHeaders,
+          body: JSON.stringify({ message: 'Failed to leave event group chat' })
         };
       }
     }

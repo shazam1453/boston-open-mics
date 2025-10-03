@@ -247,7 +247,17 @@ export const chatAPI = {
     api.post<any>(`/chat/conversations/${conversationId}/messages`, { message_text: messageText }),
   
   markMessageAsRead: (messageId: string) =>
-    api.put<{ message: string }>(`/chat/messages/${messageId}/read`)
+    api.put<{ message: string }>(`/chat/messages/${messageId}/read`),
+
+  // Group chat methods
+  getEventGroupChat: (eventId: string | number) =>
+    api.get<{ conversation: any }>(`/events/${eventId}/chat`),
+  
+  joinEventGroupChat: (eventId: string | number) =>
+    api.post<{ message: string; conversation: any }>(`/events/${eventId}/chat/join`),
+  
+  leaveEventGroupChat: (eventId: string | number) =>
+    api.post<{ message: string }>(`/events/${eventId}/chat/leave`)
 }
 
 export default api

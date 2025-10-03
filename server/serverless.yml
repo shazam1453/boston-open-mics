@@ -16,6 +16,7 @@ provider:
     SIGNUPS_TABLE: ${self:service}-${opt:stage, self:provider.stage}-signups
     CONVERSATIONS_TABLE: ${self:service}-${opt:stage, self:provider.stage}-conversations
     MESSAGES_TABLE: ${self:service}-${opt:stage, self:provider.stage}-messages
+    CONVERSATION_PARTICIPANTS_TABLE: ${self:service}-${opt:stage, self:provider.stage}-conversation-participants
     SES_FROM_EMAIL: ${env:SES_FROM_EMAIL, 'noreply@bostonopenmic.com'}
     SES_REGION: ${opt:region, self:provider.region}
     FROM_EMAIL: ${env:FROM_EMAIL, 'noreply@bostonopenmic.com'}
@@ -46,11 +47,13 @@ provider:
             - "arn:aws:dynamodb:${opt:region, self:provider.region}:*:table/${self:provider.environment.SIGNUPS_TABLE}"
             - "arn:aws:dynamodb:${opt:region, self:provider.region}:*:table/${self:provider.environment.CONVERSATIONS_TABLE}"
             - "arn:aws:dynamodb:${opt:region, self:provider.region}:*:table/${self:provider.environment.MESSAGES_TABLE}"
+            - "arn:aws:dynamodb:${opt:region, self:provider.region}:*:table/${self:provider.environment.CONVERSATION_PARTICIPANTS_TABLE}"
             - "arn:aws:dynamodb:${opt:region, self:provider.region}:*:table/${self:provider.environment.USERS_TABLE}/index/*"
             - "arn:aws:dynamodb:${opt:region, self:provider.region}:*:table/${self:provider.environment.EVENTS_TABLE}/index/*"
             - "arn:aws:dynamodb:${opt:region, self:provider.region}:*:table/${self:provider.environment.SIGNUPS_TABLE}/index/*"
             - "arn:aws:dynamodb:${opt:region, self:provider.region}:*:table/${self:provider.environment.CONVERSATIONS_TABLE}/index/*"
             - "arn:aws:dynamodb:${opt:region, self:provider.region}:*:table/${self:provider.environment.MESSAGES_TABLE}/index/*"
+            - "arn:aws:dynamodb:${opt:region, self:provider.region}:*:table/${self:provider.environment.CONVERSATION_PARTICIPANTS_TABLE}/index/*"
         - Effect: Allow
           Action:
             - ses:SendEmail
@@ -209,6 +212,8 @@ resources:
             AttributeType: S
           - AttributeName: participant_2_id
             AttributeType: S
+          - AttributeName: event_id
+            AttributeType: S
         KeySchema:
           - AttributeName: id
             KeyType: HASH
@@ -222,6 +227,12 @@ resources:
           - IndexName: Participant2Index
             KeySchema:
               - AttributeName: participant_2_id
+                KeyType: HASH
+            Projection:
+              ProjectionType: ALL
+          - IndexName: EventIndex
+            KeySchema:
+              - AttributeName: event_id
                 KeyType: HASH
             Projection:
               ProjectionType: ALL
@@ -255,6 +266,35 @@ resources:
           - IndexName: SenderIndex
             KeySchema:
               - AttributeName: sender_id
+                KeyType: HASH
+            Projection:
+              ProjectionType: ALL
+        BillingMode: PAY_PER_REQUEST
+
+    ConversationParticipantsTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: ${self:provider.environment.CONVERSATION_PARTICIPANTS_TABLE}
+        AttributeDefinitions:
+          - AttributeName: id
+            AttributeType: S
+          - AttributeName: conversation_id
+            AttributeType: S
+          - AttributeName: user_id
+            AttributeType: S
+        KeySchema:
+          - AttributeName: id
+            KeyType: HASH
+        GlobalSecondaryIndexes:
+          - IndexName: ConversationIndex
+            KeySchema:
+              - AttributeName: conversation_id
+                KeyType: HASH
+            Projection:
+              ProjectionType: ALL
+          - IndexName: UserIndex
+            KeySchema:
+              - AttributeName: user_id
                 KeyType: HASH
             Projection:
               ProjectionType: ALL
