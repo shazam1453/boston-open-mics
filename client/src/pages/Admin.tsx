@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import React, { useState, useEffect } from 'react'
 import { useAuth } from '../hooks/useAuth'
 import { adminAPI } from '../utils/api'
 import { formatDate, formatTime12Hour } from '../utils/dateTime'
@@ -13,9 +13,21 @@ export default function Admin() {
   const [loadingData, setLoadingData] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
+  const [initialized, setInitialized] = useState(false)
 
-  // Check if user is admin
-  if (loading) {
+  // Wait for auth to be completely stable before rendering anything
+  React.useEffect(() => {
+    if (!loading) {
+      // Add a small delay to ensure everything is stable
+      const timer = setTimeout(() => {
+        setInitialized(true)
+      }, 100)
+      return () => clearTimeout(timer)
+    }
+  }, [loading])
+
+  // Show loading until everything is initialized
+  if (loading || !initialized) {
     return <div className="flex justify-center items-center h-64">Loading...</div>
   }
 
