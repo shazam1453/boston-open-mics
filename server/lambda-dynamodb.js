@@ -3296,21 +3296,22 @@ Questions? Contact ${inviterName} at ${inviterEmail}
           ? Math.max(...signupsResult.Items.map(s => s.performance_order || 0))
           : 0;
 
-        // Create walk-in signup
+        // Create walk-in signup (match regular signup structure)
         const walkInSignup = {
           id: uuidv4(),
           event_id: eventId,
-          user_id: null, // Walk-ins don't have user accounts
-          performer_name: performerName,
+          user_id: 'walk-in', // Use placeholder for walk-ins (DynamoDB GSI can't handle null)
+          user_name: performerName, // Use performer name as user name for walk-ins
           performance_name: performanceName || performerName, // Use performer name as fallback
           performance_type: performanceType || 'music',
           notes: notes || '',
+          status: 'confirmed',
           performance_order: maxOrder + 1,
-          is_walk_in: true,
-          signed_up_at: new Date().toISOString(),
-          is_finished: false,
           is_current_performer: false,
-          status: 'confirmed', // Add status field that might be required
+          is_finished: false,
+          finished_at: null,
+          individual_performance_length: null,
+          is_walk_in: true,
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString()
         };
