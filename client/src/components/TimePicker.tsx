@@ -30,8 +30,12 @@ export default function TimePicker({
       setHour(hour12.toString())
       setMinute(m)
       setPeriod(periodValue)
+    } else if (value === '') {
+      // If value is empty, set default time and notify parent
+      const defaultTime = '20:00' // 8:00 PM
+      onChange(defaultTime)
     }
-  }, [value])
+  }, [value, onChange])
 
   // Convert 12-hour time to 24-hour format and call onChange
   const updateTime = (newHour: string, newMinute: string, newPeriod: string) => {
