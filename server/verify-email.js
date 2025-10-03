@@ -9,8 +9,9 @@ const ses = new AWS.SES({
 async function verifyEmail(email) {
   if (!email) {
     console.log('Usage: node verify-email.js <email-address>')
-    console.log('Example: node verify-email.js noreply@yourdomain.com')
-    process.exit(1)
+    console.log('Example: node verify-email.js noreply@bostonshowtime.com')
+    console.log('Default: node verify-email.js (will verify noreply@bostonshowtime.com)')
+    email = 'noreply@bostonshowtime.com'
   }
 
   console.log(`🔧 Verifying email address: ${email}`)

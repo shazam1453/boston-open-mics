@@ -17,10 +17,10 @@ provider:
     CONVERSATIONS_TABLE: ${self:service}-${opt:stage, self:provider.stage}-conversations
     MESSAGES_TABLE: ${self:service}-${opt:stage, self:provider.stage}-messages
     CONVERSATION_PARTICIPANTS_TABLE: ${self:service}-${opt:stage, self:provider.stage}-conversation-participants
-    SES_FROM_EMAIL: ${env:SES_FROM_EMAIL, 'noreply@bostonopenmic.com'}
+    SES_FROM_EMAIL: ${env:SES_FROM_EMAIL, 'noreply@bostonshowtime.com'}
     SES_REGION: ${opt:region, self:provider.region}
-    FROM_EMAIL: ${env:FROM_EMAIL, 'noreply@bostonopenmic.com'}
-    PLATFORM_URL: ${env:PLATFORM_URL, 'https://boston-mic-list.netlify.app'}
+    FROM_EMAIL: ${env:FROM_EMAIL, 'noreply@bostonshowtime.com'}
+    PLATFORM_URL: ${env:PLATFORM_URL, 'https://bostonshowtime.com'}
   
   # IAM role permissions
   iam:

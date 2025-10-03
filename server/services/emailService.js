@@ -9,7 +9,7 @@ const ses = new AWS.SES({
 // Email templates
 const EMAIL_TEMPLATES = {
   PASSWORD_RESET: {
-    subject: 'Boston Open Mics - Password Reset',
+    subject: 'Boston Showtime - Password Reset',
     getHtml: (data) => `
       <!DOCTYPE html>
       <html>
@@ -28,19 +28,19 @@ const EMAIL_TEMPLATES = {
       <body>
         <div class="container">
           <div class="header">
-            <h1>🎤 Boston Open Mics</h1>
+            <h1>🎤 Boston Showtime</h1>
           </div>
           <div class="content">
             <h2>Password Reset Request</h2>
             <p>Hi ${data.userName},</p>
-            <p>We received a request to reset your password for your Boston Open Mics account.</p>
+            <p>We received a request to reset your password for your Boston Showtime account.</p>
             <p>Click the button below to reset your password:</p>
             <a href="${data.resetLink}" class="button">Reset Password</a>
             <p>This link will expire in 1 hour for security reasons.</p>
             <p>If you didn't request this password reset, please ignore this email.</p>
           </div>
           <div class="footer">
-            <p>Boston Open Mics Platform<br>
+            <p>Boston Showtime Platform<br>
             Supporting the local music community</p>
           </div>
         </div>
@@ -48,11 +48,11 @@ const EMAIL_TEMPLATES = {
       </html>
     `,
     getText: (data) => `
-      Boston Open Mics - Password Reset
+      Boston Showtime - Password Reset
       
       Hi ${data.userName},
       
-      We received a request to reset your password for your Boston Open Mics account.
+      We received a request to reset your password for your Boston Showtime account.
       
       Click this link to reset your password: ${data.resetLink}
       
@@ -60,13 +60,13 @@ const EMAIL_TEMPLATES = {
       
       If you didn't request this password reset, please ignore this email.
       
-      Boston Open Mics Platform
+      Boston Showtime Platform
       Supporting the local music community
     `
   },
 
   EVENT_INVITATION: {
-    subject: 'Boston Open Mics - Event Invitation',
+    subject: 'Boston Showtime - Event Invitation',
     getHtml: (data) => `
       <!DOCTYPE html>
       <html>
@@ -88,7 +88,7 @@ const EMAIL_TEMPLATES = {
       <body>
         <div class="container">
           <div class="header">
-            <h1>🎤 Boston Open Mics</h1>
+            <h1>🎤 Boston Showtime</h1>
           </div>
           <div class="content">
             <h2>You're Invited to Perform!</h2>
@@ -110,10 +110,10 @@ const EMAIL_TEMPLATES = {
             <a href="${data.acceptLink}" class="button accept">Accept Invitation</a>
             <a href="${data.declineLink}" class="button decline">Decline</a>
             
-            <p>You can also respond by logging into your account at <a href="${data.platformUrl}">Boston Open Mics</a>.</p>
+            <p>You can also respond by logging into your account at <a href="${data.platformUrl}">Boston Showtime</a>.</p>
           </div>
           <div class="footer">
-            <p>Boston Open Mics Platform<br>
+            <p>Boston Showtime Platform<br>
             Supporting the local music community</p>
           </div>
         </div>
@@ -121,7 +121,7 @@ const EMAIL_TEMPLATES = {
       </html>
     `,
     getText: (data) => `
-      Boston Open Mics - Event Invitation
+      Boston Showtime - Event Invitation
       
       Hi ${data.userName},
       
@@ -141,13 +141,13 @@ const EMAIL_TEMPLATES = {
       
       You can also respond by logging into your account at ${data.platformUrl}.
       
-      Boston Open Mics Platform
+      Boston Showtime Platform
       Supporting the local music community
     `
   },
 
   EVENT_REMINDER: {
-    subject: 'Boston Open Mics - Event Reminder',
+    subject: 'Boston Showtime - Event Reminder',
     getHtml: (data) => `
       <!DOCTYPE html>
       <html>
@@ -167,7 +167,7 @@ const EMAIL_TEMPLATES = {
       <body>
         <div class="container">
           <div class="header">
-            <h1>🎤 Boston Open Mics</h1>
+            <h1>🎤 Boston Showtime</h1>
           </div>
           <div class="content">
             <h2>Event Reminder</h2>
@@ -188,7 +188,7 @@ const EMAIL_TEMPLATES = {
             <a href="${data.eventLink}" class="button">View Event Details</a>
           </div>
           <div class="footer">
-            <p>Boston Open Mics Platform<br>
+            <p>Boston Showtime Platform<br>
             Supporting the local music community</p>
           </div>
         </div>
@@ -196,7 +196,7 @@ const EMAIL_TEMPLATES = {
       </html>
     `,
     getText: (data) => `
-      Boston Open Mics - Event Reminder
+      Boston Showtime - Event Reminder
       
       Hi ${data.userName},
       
@@ -214,7 +214,7 @@ const EMAIL_TEMPLATES = {
       
       View event details: ${data.eventLink}
       
-      Boston Open Mics Platform
+      Boston Showtime Platform
       Supporting the local music community
     `
   }
@@ -222,8 +222,8 @@ const EMAIL_TEMPLATES = {
 
 class EmailService {
   constructor() {
-    this.fromEmail = process.env.FROM_EMAIL || 'noreply@bostonopenmic.com'
-    this.platformUrl = process.env.PLATFORM_URL || 'https://bostonopenmic.com'
+    this.fromEmail = process.env.FROM_EMAIL || 'noreply@bostonshowtime.com'
+    this.platformUrl = process.env.PLATFORM_URL || 'https://bostonshowtime.com'
   }
 
   async sendEmail(to, subject, htmlBody, textBody) {
@@ -355,16 +355,16 @@ class EmailService {
 
   // Test email functionality
   async sendTestEmail(to) {
-    const subject = 'Boston Open Mics - Email Service Test'
+    const subject = 'Boston Showtime - Email Service Test'
     const htmlBody = `
       <h2>Email Service Test</h2>
-      <p>This is a test email to verify that the Boston Open Mics email service is working correctly.</p>
+      <p>This is a test email to verify that the Boston Showtime email service is working correctly.</p>
       <p>Timestamp: ${new Date().toISOString()}</p>
     `
     const textBody = `
       Email Service Test
       
-      This is a test email to verify that the Boston Open Mics email service is working correctly.
+      This is a test email to verify that the Boston Showtime email service is working correctly.
       
       Timestamp: ${new Date().toISOString()}
     `

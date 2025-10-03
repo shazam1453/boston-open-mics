@@ -6,8 +6,11 @@ async function testEmailService() {
 
   // Test 1: Basic email sending
   console.log('1️⃣ Testing basic email sending...')
+  const testEmail = process.env.TEST_EMAIL || 'test@bostonshowtime.com'
+  console.log(`Sending to: ${testEmail}`)
+  
   try {
-    const result = await emailService.sendTestEmail('test@example.com')
+    const result = await emailService.sendTestEmail(testEmail)
     if (result.success) {
       console.log('✅ Test email sent successfully!')
       console.log('📧 Message ID:', result.messageId)
@@ -27,7 +30,7 @@ async function testEmailService() {
     tokenService.storeResetToken('test@example.com', resetToken)
     
     const result = await emailService.sendPasswordResetEmail(
-      'test@example.com',
+      testEmail,
       'Test User',
       resetToken
     )
@@ -49,7 +52,7 @@ async function testEmailService() {
   console.log('3️⃣ Testing event invitation email...')
   try {
     const invitation = {
-      userEmail: 'performer@example.com',
+      userEmail: testEmail,
       userName: 'Jane Performer',
       inviterName: 'Event Host',
       eventTitle: 'Weekly Open Mic Night',
@@ -80,7 +83,7 @@ async function testEmailService() {
   console.log('4️⃣ Testing event reminder email...')
   try {
     const reminder = {
-      userEmail: 'performer@example.com',
+      userEmail: testEmail,
       userName: 'Jane Performer',
       eventTitle: 'Weekly Open Mic Night',
       eventDate: 'Friday, October 4, 2025',
