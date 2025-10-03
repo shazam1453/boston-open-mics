@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useParams } from 'react-router-dom'
-import { eventsAPI, signupsAPI, chatAPI } from '../utils/api'
+import { eventsAPI, signupsAPI, chatAPI, usersAPI, invitationsAPI } from '../utils/api'
 import { useAuth } from '../hooks/useAuth'
 import { formatTime12Hour, formatDate, formatTimeOnly12Hour } from '../utils/dateTime'
 import { PERFORMANCE_TYPES } from '../constants/formOptions'
@@ -53,6 +53,11 @@ export default function EventDetail() {
     maxPerformers: 10,
     performanceLength: 5
   })
+  
+  // Performer search for booked mic events
+  const [performerSearch, setPerformerSearch] = useState('')
+  const [performerResults, setPerformerResults] = useState<any[]>([])
+  const [selectedPerformers, setSelectedPerformers] = useState<any[]>([])
 
   useEffect(() => {
     const fetchEventData = async () => {
@@ -226,6 +231,7 @@ export default function EventDetail() {
     
     setSubmitting(true)
     try {
+      // Update event details
       const response = await eventsAPI.update(event.id, {
         title: editEventForm.title,
         description: editEventForm.description,
@@ -233,12 +239,68 @@ export default function EventDetail() {
         performance_length: editEventForm.performanceLength
       })
       setEvent(response.data.event)
+      
+      // Send invitations for booked mic events
+      if (event.signup_list_mode === 'booked_mic' && selectedPerformers.length > 0) {
+        await sendInvitations()
+      }
+      
       setShowEditEventForm(false)
     } catch (error) {
       console.error('Error updating event:', error)
       setError('Failed to update event')
     } finally {
       setSubmitting(false)
+    }
+  }
+
+  // Performer search functions for booked mic events
+  const searchPerformers = async (query: string) => {
+    if (query.length < 2) {
+      setPerformerResults([])
+      return
+    }
+
+    try {
+      const response = await usersAPI.search(query)
+      setPerformerResults(response.data)
+    } catch (error) {
+      console.error('Error searching performers:', error)
+      setPerformerResults([])
+    }
+  }
+
+  const addPerformerInvite = (performer: any) => {
+    if (selectedPerformers.some(p => p.id === performer.id)) {
+      return // Already added
+    }
+    setSelectedPerformers(prev => [...prev, performer])
+    setPerformerSearch('')
+    setPerformerResults([])
+  }
+
+  const removePerformer = (performerId: string | number) => {
+    setSelectedPerformers(prev => prev.filter(p => p.id !== performerId))
+  }
+
+  const sendInvitations = async () => {
+    if (!event || selectedPerformers.length === 0) return
+
+    try {
+      for (const performer of selectedPerformers) {
+        await invitationsAPI.create({
+          eventId: event.id,
+          inviteeId: performer.id,
+          type: 'performer',
+          message: `You've been invited to perform at "${event.title}"`
+        })
+      }
+      setSelectedPerformers([])
+      setPerformerSearch('')
+      setPerformerResults([])
+    } catch (error) {
+      console.error('Error sending invitations:', error)
+      setError('Failed to send invitations')
     }
   }
 
@@ -1735,6 +1797,85 @@ export default function EventDetail() {
                   required
                 />
               </div>
+              
+              {/* Performer Search for Booked Mic Events */}
+              {event?.signup_list_mode === 'booked_mic' && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Invite Additional Performers
+                  </label>
+                  <p className="text-xs text-gray-500 mb-3">
+                    Search for users to invite to this booked mic event
+                  </p>
+                  
+                  {/* Selected Performers */}
+                  {selectedPerformers.length > 0 && (
+                    <div className="mb-3">
+                      <p className="text-sm font-medium text-gray-700 mb-2">Performers to invite:</p>
+                      <div className="flex flex-wrap gap-2">
+                        {selectedPerformers.map(performer => (
+                          <div
+                            key={performer.id}
+                            className="flex items-center space-x-2 bg-purple-100 text-purple-800 px-3 py-1 rounded-full text-sm"
+                          >
+                            <span>{performer.name}</span>
+                            <button
+                              type="button"
+                              onClick={() => removePerformer(performer.id)}
+                              className="text-purple-600 hover:text-purple-800"
+                            >
+                              ×
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  
+                  {/* Performer Search */}
+                  <div className="relative">
+                    <input
+                      type="text"
+                      value={performerSearch}
+                      onChange={(e) => {
+                        setPerformerSearch(e.target.value)
+                        searchPerformers(e.target.value)
+                      }}
+                      placeholder="Search by name, email, or performer type..."
+                      className="input"
+                    />
+                    
+                    {/* Search Results */}
+                    {performerResults.length > 0 && (
+                      <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg max-h-40 overflow-y-auto">
+                        {performerResults.map(user => (
+                          <button
+                            key={user.id}
+                            type="button"
+                            onClick={() => addPerformerInvite(user)}
+                            className="w-full px-3 py-2 text-left hover:bg-gray-50"
+                          >
+                            <div className="flex items-center space-x-3">
+                              <div className="w-8 h-8 bg-gray-300 rounded-full flex items-center justify-center">
+                                <span className="text-sm font-medium text-gray-700">
+                                  {user.name?.charAt(0)?.toUpperCase() || '?'}
+                                </span>
+                              </div>
+                              <div>
+                                <div className="font-medium text-gray-900">{user.name}</div>
+                                <div className="text-sm text-gray-500">
+                                  {user.performer_type && <span className="capitalize">{user.performer_type}</span>}
+                                  {user.email && <span> • {user.email}</span>}
+                                </div>
+                              </div>
+                            </div>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
               
               <div className="flex space-x-3 pt-4">
                 <button 
