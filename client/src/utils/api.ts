@@ -215,7 +215,7 @@ export const signupsAPI = {
     performerName: string
     performanceType: string
     notes?: string
-  }) => api.post<{ signup: Signup }>(`/signups/event/${eventId}/add-performer`, performerData),
+  }) => api.post<{ signup: Signup }>(`/events/${eventId}/walk-ins`, performerData),
 }
 
 // Recurring Events API
