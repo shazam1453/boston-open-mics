@@ -21,6 +21,8 @@ export default function EventDetail() {
   const [joiningGroupChat, setJoiningGroupChat] = useState(false)
   const [showWalkInForm, setShowWalkInForm] = useState(false)
   const [showCreateGroupChat, setShowCreateGroupChat] = useState(false)
+  const [showEditEventForm, setShowEditEventForm] = useState(false)
+  const [showAddParticipantsModal, setShowAddParticipantsModal] = useState(false)
   const [hasGroupChat, setHasGroupChat] = useState(false)
   const [addPerformerForm, setAddPerformerForm] = useState({
     performanceName: '',
@@ -39,6 +41,18 @@ export default function EventDetail() {
     performanceType: 'music',
     notes: ''
   })
+  const [addParticipantsForm, setAddParticipantsForm] = useState({
+    performanceName: '',
+    performerName: '',
+    performanceType: 'music',
+    notes: ''
+  })
+  const [editEventForm, setEditEventForm] = useState({
+    title: '',
+    description: '',
+    maxPerformers: 10,
+    performanceLength: 5
+  })
 
   useEffect(() => {
     const fetchEventData = async () => {
@@ -52,6 +66,14 @@ export default function EventDetail() {
         
         setEvent(eventResponse.data)
         setSignups(signupsResponse.data)
+        
+        // Populate edit form with current event data
+        setEditEventForm({
+          title: eventResponse.data.title || '',
+          description: eventResponse.data.description || '',
+          maxPerformers: eventResponse.data.max_performers || 10,
+          performanceLength: eventResponse.data.performance_length || 5
+        })
         
         // Check if current user is already signed up
         if (user) {
@@ -170,6 +192,51 @@ export default function EventDetail() {
     } catch (error) {
       console.error('Error adding performer:', error)
       setError('Failed to add performer')
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  const handleAddParticipants = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!event) return
+    
+    setSubmitting(true)
+    try {
+      const response = await signupsAPI.addManualPerformer(event.id, addParticipantsForm)
+      setSignups(prev => [...prev, response.data.signup])
+      setShowAddParticipantsModal(false)
+      setAddParticipantsForm({
+        performanceName: '',
+        performerName: '',
+        performanceType: 'music',
+        notes: ''
+      })
+    } catch (error) {
+      console.error('Error adding participant:', error)
+      setError('Failed to add participant')
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  const handleEditEvent = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!event) return
+    
+    setSubmitting(true)
+    try {
+      const response = await eventsAPI.update(event.id, {
+        title: editEventForm.title,
+        description: editEventForm.description,
+        max_performers: editEventForm.maxPerformers,
+        performance_length: editEventForm.performanceLength
+      })
+      setEvent(response.data.event)
+      setShowEditEventForm(false)
+    } catch (error) {
+      console.error('Error updating event:', error)
+      setError('Failed to update event')
     } finally {
       setSubmitting(false)
     }
@@ -579,22 +646,44 @@ export default function EventDetail() {
             {isHost && (
               <>
                 {event.event_status === 'scheduled' && (
-                  <button
-                    onClick={handleStartEvent}
-                    disabled={submitting}
-                    className="btn btn-primary"
-                  >
-                    {submitting ? 'Starting...' : 'Start Event'}
-                  </button>
+                  <>
+                    <button
+                      onClick={() => setShowEditEventForm(true)}
+                      className="btn btn-secondary"
+                    >
+                      ✏️ Edit Event
+                    </button>
+                    <button
+                      onClick={() => setShowAddParticipantsModal(true)}
+                      className="btn bg-purple-600 text-white hover:bg-purple-700"
+                    >
+                      👥 Add Participants
+                    </button>
+                    <button
+                      onClick={handleStartEvent}
+                      disabled={submitting}
+                      className="btn btn-primary"
+                    >
+                      {submitting ? 'Starting...' : 'Start Event'}
+                    </button>
+                  </>
                 )}
                 {event.event_status === 'live' && (
-                  <button
-                    onClick={handleFinishEvent}
-                    disabled={submitting}
-                    className="btn bg-red-600 text-white hover:bg-red-700"
-                  >
-                    {submitting ? 'Finishing...' : 'Finish Event'}
-                  </button>
+                  <>
+                    <button
+                      onClick={() => setShowAddParticipantsModal(true)}
+                      className="btn bg-purple-600 text-white hover:bg-purple-700"
+                    >
+                      👥 Add Participants
+                    </button>
+                    <button
+                      onClick={handleFinishEvent}
+                      disabled={submitting}
+                      className="btn bg-red-600 text-white hover:bg-red-700"
+                    >
+                      {submitting ? 'Finishing...' : 'Finish Event'}
+                    </button>
+                  </>
                 )}
               </>
             )}
@@ -1493,6 +1582,171 @@ export default function EventDetail() {
                 <button
                   type="button"
                   onClick={() => setShowAddPerformerForm(false)}
+                  className="btn btn-secondary flex-1"
+                  disabled={submitting}
+                >
+                  Cancel
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Add Participants Modal */}
+      {showAddParticipantsModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-lg p-6 w-full max-w-md">
+            <h3 className="text-lg font-semibold mb-4">Add Participants</h3>
+            <form onSubmit={handleAddParticipants} className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Performer Name *
+                </label>
+                <input
+                  type="text"
+                  value={addParticipantsForm.performerName}
+                  onChange={(e) => setAddParticipantsForm(prev => ({ ...prev, performerName: e.target.value }))}
+                  className="input"
+                  required
+                />
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Performance Name *
+                </label>
+                <input
+                  type="text"
+                  value={addParticipantsForm.performanceName}
+                  onChange={(e) => setAddParticipantsForm(prev => ({ ...prev, performanceName: e.target.value }))}
+                  className="input"
+                  required
+                />
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Performance Type *
+                </label>
+                <select
+                  value={addParticipantsForm.performanceType}
+                  onChange={(e) => setAddParticipantsForm(prev => ({ ...prev, performanceType: e.target.value }))}
+                  className="input"
+                  required
+                >
+                  {PERFORMANCE_TYPES.map(type => (
+                    <option key={type.value} value={type.value}>{type.label}</option>
+                  ))}
+                </select>
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Notes
+                </label>
+                <textarea
+                  value={addParticipantsForm.notes}
+                  onChange={(e) => setAddParticipantsForm(prev => ({ ...prev, notes: e.target.value }))}
+                  className="input"
+                  rows={2}
+                />
+              </div>
+              
+              <div className="flex space-x-3 pt-4">
+                <button 
+                  type="submit" 
+                  className="btn btn-primary flex-1"
+                  disabled={submitting}
+                >
+                  {submitting ? 'Adding...' : 'Add Participant'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowAddParticipantsModal(false)}
+                  className="btn btn-secondary flex-1"
+                  disabled={submitting}
+                >
+                  Cancel
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Event Modal */}
+      {showEditEventForm && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-lg p-6 w-full max-w-md">
+            <h3 className="text-lg font-semibold mb-4">Edit Event</h3>
+            <form onSubmit={handleEditEvent} className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Event Title *
+                </label>
+                <input
+                  type="text"
+                  value={editEventForm.title}
+                  onChange={(e) => setEditEventForm(prev => ({ ...prev, title: e.target.value }))}
+                  className="input"
+                  required
+                />
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Description
+                </label>
+                <textarea
+                  value={editEventForm.description}
+                  onChange={(e) => setEditEventForm(prev => ({ ...prev, description: e.target.value }))}
+                  className="input"
+                  rows={3}
+                />
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Max Performers *
+                </label>
+                <input
+                  type="number"
+                  min="1"
+                  max="50"
+                  value={editEventForm.maxPerformers}
+                  onChange={(e) => setEditEventForm(prev => ({ ...prev, maxPerformers: parseInt(e.target.value) }))}
+                  className="input"
+                  required
+                />
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Performance Length (minutes) *
+                </label>
+                <input
+                  type="number"
+                  min="1"
+                  max="30"
+                  value={editEventForm.performanceLength}
+                  onChange={(e) => setEditEventForm(prev => ({ ...prev, performanceLength: parseInt(e.target.value) }))}
+                  className="input"
+                  required
+                />
+              </div>
+              
+              <div className="flex space-x-3 pt-4">
+                <button 
+                  type="submit" 
+                  className="btn btn-primary flex-1"
+                  disabled={submitting}
+                >
+                  {submitting ? 'Updating...' : 'Update Event'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowEditEventForm(false)}
                   className="btn btn-secondary flex-1"
                   disabled={submitting}
                 >
