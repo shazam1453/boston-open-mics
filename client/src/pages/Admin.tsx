@@ -19,8 +19,6 @@ export default function Admin() {
     return <div className="flex justify-center items-center h-64">Loading...</div>
   }
 
-  console.log('Admin page - user:', user, 'role:', user?.role)
-
   if (!user || !['admin', 'super_admin', 'moderator'].includes(user.role || '')) {
     return (
       <div className="text-center py-12">
@@ -172,6 +170,13 @@ export default function Admin() {
     }
   }
 
+  // Debug logging
+  useEffect(() => {
+    if (user) {
+      console.log('Admin page - user:', user, 'role:', user?.role)
+    }
+  }, [user])
+
   useEffect(() => {
     if (activeTab === 'users') {
       loadUsers()
@@ -189,25 +194,25 @@ export default function Admin() {
 
   // Filter functions
   const filteredUsers = users.filter(user => 
-    user.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    user.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    (user.performer_type && user.performer_type.toLowerCase().includes(searchQuery.toLowerCase())) ||
-    (user.role && user.role.toLowerCase().includes(searchQuery.toLowerCase()))
+    (user.name || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+    (user.email || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+    (user.performer_type || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+    (user.role || '').toLowerCase().includes(searchQuery.toLowerCase())
   )
 
   const filteredEvents = events.filter(event =>
-    event.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    (event.venue_name && event.venue_name.toLowerCase().includes(searchQuery.toLowerCase())) ||
-    (event.host_name && event.host_name.toLowerCase().includes(searchQuery.toLowerCase())) ||
-    event.event_type.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    event.event_status.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    event.date.includes(searchQuery)
+    (event.title || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+    (event.venue_name || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+    (event.host_name || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+    (event.event_type || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+    (event.event_status || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+    (event.date || '').includes(searchQuery)
   )
 
   const filteredVenues = venues.filter(venue =>
-    venue.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    venue.address.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    (venue.owner_name && venue.owner_name.toLowerCase().includes(searchQuery.toLowerCase()))
+    (venue.name || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+    (venue.address || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+    (venue.owner_name || '').toLowerCase().includes(searchQuery.toLowerCase())
   )
 
   return (

@@ -86,6 +86,25 @@ export default function Events() {
       
       try {
         console.log('Fetching events...', { user: user?.id, authLoading })
+        
+        // Try public API first if we suspect token issues
+        const token = localStorage.getItem('token')
+        if (token && !user) {
+          console.log('Token exists but no user - might be expired, trying public API first')
+          try {
+            const eventsResponse = await eventsAPI.getAllPublic()
+            console.log('Events fetched via public API:', eventsResponse.data.length)
+            const recentEvents = filterOldEvents(eventsResponse.data)
+            const filteredEvents = filterRecurringEvents(recentEvents)
+            setEvents(filteredEvents)
+            setUserSignups([])
+            localStorage.removeItem('token') // Clear the invalid token
+            return
+          } catch (publicErr) {
+            console.log('Public API also failed, trying authenticated API')
+          }
+        }
+        
         const eventsResponse = await eventsAPI.getAll()
         console.log('Events fetched:', eventsResponse.data.length)
         
