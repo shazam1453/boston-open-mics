@@ -214,7 +214,12 @@ export default function EventDetail() {
         performanceName: addParticipantsForm.performanceName || addParticipantsForm.performerName
       }
       
+      console.log('Adding participant with data:', performanceData)
+      console.log('Event ID:', event.id)
+      
       const response = await signupsAPI.addManualPerformer(event.id, performanceData)
+      console.log('Add participant response:', response)
+      
       setSignups(prev => [...prev, response.data.signup])
       setShowAddParticipantsModal(false)
       setAddParticipantsForm({
@@ -223,9 +228,11 @@ export default function EventDetail() {
         performanceType: 'music',
         notes: ''
       })
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error adding participant:', error)
-      setError('Failed to add participant')
+      console.error('Error response:', error.response?.data)
+      console.error('Error status:', error.response?.status)
+      setError(`Failed to add participant: ${error.response?.data?.message || error.message}`)
     } finally {
       setSubmitting(false)
     }
@@ -1658,7 +1665,7 @@ export default function EventDetail() {
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-3 sm:p-4 z-50">
           <div className="bg-white rounded-xl p-5 sm:p-6 w-full max-w-sm sm:max-w-md max-h-[85vh] overflow-y-auto shadow-2xl">
             <h3 className="text-lg font-semibold mb-4">Add Participants</h3>
-            <form onSubmit={handleAddParticipants} className="space-y-5">
+            <form onSubmit={handleAddParticipants} className="space-y-5" noValidate>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   Performer Name *
@@ -1669,6 +1676,8 @@ export default function EventDetail() {
                   onChange={(e) => setAddParticipantsForm(prev => ({ ...prev, performerName: e.target.value }))}
                   className="input"
                   required
+                  autoComplete="name"
+                  inputMode="text"
                 />
               </div>
               
@@ -1682,6 +1691,8 @@ export default function EventDetail() {
                   onChange={(e) => setAddParticipantsForm(prev => ({ ...prev, performanceName: e.target.value }))}
                   className="input"
                   placeholder="Optional - can be added later"
+                  autoComplete="off"
+                  inputMode="text"
                 />
               </div>
               
