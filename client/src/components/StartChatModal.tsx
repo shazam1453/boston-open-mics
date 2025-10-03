@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { usersAPI } from '../utils/api'
 
 interface StartChatModalProps {
@@ -12,11 +12,10 @@ export default function StartChatModal({ onClose, onStartChat }: StartChatModalP
   const [searching, setSearching] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  const handleSearch = async (query: string) => {
-    setSearchQuery(query)
-    
+  const performSearch = useCallback(async (query: string) => {
     if (query.length < 2) {
       setSearchResults([])
+      setSearching(false)
       return
     }
 
@@ -24,14 +23,35 @@ export default function StartChatModal({ onClose, onStartChat }: StartChatModalP
     setError(null)
 
     try {
+      console.log('Searching for users with query:', query)
       const response = await usersAPI.search(query)
+      console.log('Search results:', response.data)
       setSearchResults(response.data)
     } catch (error: any) {
       console.error('Search failed:', error)
-      setError('Failed to search users')
+      setError(error.response?.data?.message || 'Failed to search users')
       setSearchResults([])
     } finally {
       setSearching(false)
+    }
+  }, [])
+
+  // Debounce search
+  useEffect(() => {
+    const timeoutId = setTimeout(() => {
+      performSearch(searchQuery)
+    }, 300)
+
+    return () => clearTimeout(timeoutId)
+  }, [searchQuery, performSearch])
+
+  const handleSearch = (query: string) => {
+    setSearchQuery(query)
+    if (query.length < 2) {
+      setSearchResults([])
+      setSearching(false)
+    } else {
+      setSearching(true)
     }
   }
 
@@ -58,7 +78,7 @@ export default function StartChatModal({ onClose, onStartChat }: StartChatModalP
               type="text"
               value={searchQuery}
               onChange={(e) => handleSearch(e.target.value)}
-              placeholder="Search for users by name..."
+              placeholder="Search by name, email, or performer type..."
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
               autoFocus
             />

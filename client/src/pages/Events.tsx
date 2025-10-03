@@ -106,14 +106,34 @@ export default function Events() {
         }
         console.log('Data fetch completed successfully')
       } catch (err: any) {
-        const errorMessage = err.response?.data?.message || err.message || 'Failed to load events'
-        setError(errorMessage)
         console.error('Error fetching events:', {
           error: err,
           status: err.response?.status,
           data: err.response?.data,
-          message: errorMessage
+          url: err.config?.url
         })
+        
+        // If we get unauthorized on events endpoint, it might be due to invalid token
+        // Since events endpoint should be public, try using public method without auth
+        if (err.response?.status === 401 && err.config?.url?.includes('/events')) {
+          console.log('Got 401 on events endpoint, trying public API without auth')
+          try {
+            const eventsResponse = await eventsAPI.getAllPublic()
+            const recentEvents = filterOldEvents(eventsResponse.data)
+            const filteredEvents = filterRecurringEvents(recentEvents)
+            setEvents(filteredEvents)
+            // Clear potentially invalid token
+            localStorage.removeItem('token')
+            // Don't try to fetch user signups since token was invalid
+            setUserSignups([])
+            return // Success, exit early
+          } catch (retryErr: any) {
+            console.error('Public API retry also failed:', retryErr)
+          }
+        }
+        
+        const errorMessage = err.response?.data?.message || err.message || 'Failed to load events'
+        setError(errorMessage)
       } finally {
         setLoading(false)
       }
@@ -225,9 +245,26 @@ export default function Events() {
         } else {
           setUserSignups([])
         }
-      } catch (err) {
+      } catch (err: any) {
+        console.error('Retry error:', err)
+        
+        // Handle 401 on events endpoint by using public API
+        if (err.response?.status === 401 && err.config?.url?.includes('/events')) {
+          console.log('Got 401 on retry, trying public API')
+          try {
+            const eventsResponse = await eventsAPI.getAllPublic()
+            const recentEvents = filterOldEvents(eventsResponse.data)
+            const filteredEvents = filterRecurringEvents(recentEvents)
+            setEvents(filteredEvents)
+            localStorage.removeItem('token')
+            setUserSignups([])
+            return
+          } catch (retryErr) {
+            console.error('Public API retry failed:', retryErr)
+          }
+        }
+        
         setError('Failed to load events')
-        console.error('Error fetching events:', err)
       } finally {
         setLoading(false)
       }

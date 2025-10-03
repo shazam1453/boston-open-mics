@@ -86,6 +86,13 @@ export const eventsAPI = {
   getAll: (filters?: { date?: string; eventType?: string; venueId?: string | number }) =>
     api.get<Event[]>('/events', { params: filters }),
   
+  // Public method that doesn't send auth headers (for when token might be invalid)
+  getAllPublic: (filters?: { date?: string; eventType?: string; venueId?: string | number }) =>
+    axios.get<Event[]>(`${API_BASE_URL}/events`, { 
+      params: filters,
+      timeout: 10000
+    }),
+  
   getById: (id: string | number) => api.get<Event>(`/events/${id}`),
   
   create: (eventData: {
