@@ -704,58 +704,41 @@ export default function EventDetail() {
               </>
             )}
             
-            {/* Debug Info - Remove after testing */}
-            {user && event && (
-              <div className="mb-4 p-2 bg-yellow-50 border border-yellow-200 text-xs">
-                <p>Debug: user.id={user.id} (type: {typeof user.id})</p>
-                <p>Debug: event.host_id={event.host_id} (type: {typeof event.host_id})</p>
-                <p>Debug: event.event_status={event.event_status}</p>
-                <p>Debug: isHost={String(isHost)}</p>
-              </div>
-            )}
-            
+
             {/* Host Controls */}
-            {isHost && (
+            {isHost && event.event_status !== 'finished' && (
               <>
-                {event.event_status === 'scheduled' && (
-                  <>
-                    <button
-                      onClick={() => setShowEditEventForm(true)}
-                      className="btn btn-secondary"
-                    >
-                      ✏️ Edit Event
-                    </button>
-                    <button
-                      onClick={() => setShowAddParticipantsModal(true)}
-                      className="btn bg-purple-600 text-white hover:bg-purple-700"
-                    >
-                      👥 Add Participants
-                    </button>
-                    <button
-                      onClick={handleStartEvent}
-                      disabled={submitting}
-                      className="btn btn-primary"
-                    >
-                      {submitting ? 'Starting...' : 'Start Event'}
-                    </button>
-                  </>
-                )}
-                {event.event_status === 'live' && (
-                  <>
-                    <button
-                      onClick={() => setShowAddParticipantsModal(true)}
-                      className="btn bg-purple-600 text-white hover:bg-purple-700"
-                    >
-                      👥 Add Participants
-                    </button>
-                    <button
-                      onClick={handleFinishEvent}
-                      disabled={submitting}
-                      className="btn bg-red-600 text-white hover:bg-red-700"
-                    >
-                      {submitting ? 'Finishing...' : 'Finish Event'}
-                    </button>
-                  </>
+                {/* Edit Event and Add Participants - Available for all non-finished events */}
+                <button
+                  onClick={() => setShowEditEventForm(true)}
+                  className="btn btn-secondary"
+                >
+                  ✏️ Edit Event
+                </button>
+                <button
+                  onClick={() => setShowAddParticipantsModal(true)}
+                  className="btn bg-purple-600 text-white hover:bg-purple-700"
+                >
+                  👥 Add Participants
+                </button>
+                
+                {/* Event Status Controls */}
+                {event.event_status === 'live' ? (
+                  <button
+                    onClick={handleFinishEvent}
+                    disabled={submitting}
+                    className="btn bg-red-600 text-white hover:bg-red-700"
+                  >
+                    {submitting ? 'Finishing...' : 'Finish Event'}
+                  </button>
+                ) : (
+                  <button
+                    onClick={handleStartEvent}
+                    disabled={submitting}
+                    className="btn btn-primary"
+                  >
+                    {submitting ? 'Starting...' : 'Start Event'}
+                  </button>
                 )}
               </>
             )}
