@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { chatAPI } from '../utils/api'
-import { formatDistanceToNow, format } from 'date-fns'
+// Removed date-fns to avoid SES Temporal API conflicts
 
 interface ChatMessageViewProps {
   conversation: any
@@ -144,12 +144,25 @@ export default function ChatMessageView({
     const diffInHours = (now.getTime() - date.getTime()) / (1000 * 60 * 60)
 
     if (diffInHours < 24) {
-      return format(date, 'h:mm a')
+      return date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })
     } else if (diffInHours < 168) { // 7 days
-      return format(date, 'EEE h:mm a')
+      return date.toLocaleDateString('en-US', { weekday: 'short' }) + ' ' + 
+             date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })
     } else {
-      return format(date, 'MMM d, h:mm a')
+      return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) + ', ' +
+             date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })
     }
+  }
+
+  const formatDistanceToNow = (date: Date) => {
+    const now = new Date()
+    const diffInSeconds = Math.floor((now.getTime() - date.getTime()) / 1000)
+    
+    if (diffInSeconds < 60) return 'just now'
+    if (diffInSeconds < 3600) return `${Math.floor(diffInSeconds / 60)} minutes ago`
+    if (diffInSeconds < 86400) return `${Math.floor(diffInSeconds / 3600)} hours ago`
+    if (diffInSeconds < 2592000) return `${Math.floor(diffInSeconds / 86400)} days ago`
+    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
   }
 
   return (
@@ -246,7 +259,7 @@ export default function ChatMessageView({
                     <div className={`text-xs mt-1 ${
                       isFromCurrentUser ? 'text-blue-100' : 'text-gray-500'
                     }`}>
-                      {formatDistanceToNow(new Date(message.timestamp), { addSuffix: true })}
+                      {formatDistanceToNow(new Date(message.timestamp))}
                       {isFromCurrentUser && message.read_at && (
                         <span className="ml-2">✓</span>
                       )}
