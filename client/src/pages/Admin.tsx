@@ -30,50 +30,7 @@ export default function Admin() {
     )
   }
 
-  const loadUsers = async () => {
-    setLoadingData(true)
-    setError(null)
-    try {
-      const response = await adminAPI.getAllUsers()
-      setUsers(response.data || [])
-    } catch (error: any) {
-      console.error('Error loading users:', error)
-      setError(error.response?.data?.message || 'Failed to load users')
-      setUsers([])
-    } finally {
-      setLoadingData(false)
-    }
-  }
 
-  const loadEvents = async () => {
-    setLoadingData(true)
-    setError(null)
-    try {
-      const response = await adminAPI.getAllEvents()
-      setEvents(response.data || [])
-    } catch (error: any) {
-      console.error('Error loading events:', error)
-      setError(error.response?.data?.message || 'Failed to load events')
-      setEvents([])
-    } finally {
-      setLoadingData(false)
-    }
-  }
-
-  const loadVenues = async () => {
-    setLoadingData(true)
-    setError(null)
-    try {
-      const response = await adminAPI.getAllVenues()
-      setVenues(response.data || [])
-    } catch (error: any) {
-      console.error('Error loading venues:', error)
-      setError(error.response?.data?.message || 'Failed to load venues')
-      setVenues([])
-    } finally {
-      setLoadingData(false)
-    }
-  }
 
   const deleteUser = async (userId: string | number) => {
     if (!confirm('Are you sure you want to delete this user? This action cannot be undone.')) {
@@ -176,38 +133,49 @@ export default function Admin() {
     }
   }
 
-  // Debug logging - only run once when user changes
+  // Single useEffect to handle all data loading
   useEffect(() => {
-    if (user) {
-      console.log('Admin page - user:', user, 'role:', user?.role)
-    }
-  }, [user?.id]) // Only depend on user ID to prevent re-renders
-
-  // Load data when tab changes
-  useEffect(() => {
-    // Only load data if user is authenticated and has admin permissions
-    if (!user || loading || !['admin', 'super_admin', 'moderator'].includes(user.role || '')) {
+    // Don't do anything if still loading or no user
+    if (loading || !user) return
+    
+    // Check permissions
+    if (!['admin', 'super_admin', 'moderator'].includes(user.role || '')) {
       return
     }
     
-    if (activeTab === 'users') {
-      loadUsers()
-    } else if (activeTab === 'events') {
-      loadEvents()
-    } else if (activeTab === 'venues') {
-      loadVenues()
-    }
-  }, [activeTab])
-
-  // Initial load when user is ready
-  useEffect(() => {
-    if (user && !loading && ['admin', 'super_admin', 'moderator'].includes(user.role || '')) {
-      // Load initial tab data
-      if (activeTab === 'users') {
-        loadUsers()
+    console.log('Admin page - user:', user, 'role:', user?.role)
+    
+    // Load data based on active tab
+    const loadData = async () => {
+      setLoadingData(true)
+      setError(null)
+      
+      try {
+        if (activeTab === 'users') {
+          const response = await adminAPI.getAllUsers()
+          setUsers(response.data || [])
+        } else if (activeTab === 'events') {
+          const response = await adminAPI.getAllEvents()
+          setEvents(response.data || [])
+        } else if (activeTab === 'venues') {
+          const response = await adminAPI.getAllVenues()
+          setVenues(response.data || [])
+        }
+      } catch (error: any) {
+        console.error(`Error loading ${activeTab}:`, error)
+        setError(error.response?.data?.message || `Failed to load ${activeTab}`)
+        
+        // Reset the appropriate state
+        if (activeTab === 'users') setUsers([])
+        else if (activeTab === 'events') setEvents([])
+        else if (activeTab === 'venues') setVenues([])
+      } finally {
+        setLoadingData(false)
       }
     }
-  }, [user?.id, loading]) // Only run when user ID changes or loading state changes
+    
+    loadData()
+  }, [activeTab, user?.id, loading]) // Minimal dependencies
 
   // Reset search when switching tabs
   useEffect(() => {
