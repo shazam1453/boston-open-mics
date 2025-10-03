@@ -680,22 +680,81 @@ export default function EventDetail() {
           </div>
 
           <div>
-            {event.event_status === 'scheduled' && !isHost && (
+            {event.event_status === 'scheduled' && (
               <>
                 <h2 className="text-xl font-semibold mb-4">
-                  {event.signup_list_mode === 'booked_mic' ? 'Invitation Status' : 'Sign Up to Perform'}
+                  {isHost ? 'Host Signup' : 
+                   event.signup_list_mode === 'booked_mic' ? 'Invitation Status' : 'Sign Up to Perform'}
                 </h2>
                 
-                {event.signup_list_mode === 'booked_mic' ? (
-                  <div className="bg-purple-50 p-4 rounded-lg">
-                    <p className="text-purple-700 mb-2">
-                      <strong>Invite-Only Event</strong>
-                    </p>
-                    <p className="text-purple-600">
-                      This is a booked mic event. Performers are invited by the host. 
-                      {userSignup ? ' You have been invited to perform!' : ' You have not been invited to this event.'}
-                    </p>
-                  </div>
+                {isHost ? (
+                  // Host signup section
+                  userSignup ? (
+                    <div className="bg-blue-50 p-4 rounded-lg">
+                      <p className="text-blue-700 mb-2">
+                        <strong>You're performing at your own event!</strong>
+                      </p>
+                      <p className="text-blue-600 mb-4">
+                        Performance: "{userSignup.performance_name}"
+                      </p>
+                      <button 
+                        onClick={handleCancelSignup}
+                        disabled={submitting}
+                        className="btn bg-red-600 text-white hover:bg-red-700"
+                      >
+                        {submitting ? 'Canceling...' : 'Cancel My Performance'}
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="bg-green-50 p-4 rounded-lg">
+                      <p className="text-green-700 mb-2">
+                        <strong>Want to perform at your own event?</strong>
+                      </p>
+                      <p className="text-gray-600 mb-4">
+                        As the host, you can add yourself to the performer list.
+                      </p>
+                      <button 
+                        onClick={() => {
+                          setSignupForm({
+                            performerName: user.name,
+                            performanceType: 'music',
+                            notes: ''
+                          })
+                          setShowSignupForm(true)
+                        }}
+                        className="btn btn-primary"
+                      >
+                        Add Myself as Performer
+                      </button>
+                    </div>
+                  )
+                ) : event.signup_list_mode === 'booked_mic' ? (
+                  userSignup ? (
+                    <div className="bg-blue-50 p-4 rounded-lg">
+                      <p className="text-blue-700 mb-2">
+                        <strong>You're signed up!</strong>
+                      </p>
+                      <p className="text-blue-600 mb-4">
+                        Performance: "{userSignup.performance_name}"
+                      </p>
+                      <button 
+                        onClick={handleCancelSignup}
+                        disabled={submitting}
+                        className="btn bg-red-600 text-white hover:bg-red-700"
+                      >
+                        {submitting ? 'Canceling...' : 'Cancel Signup'}
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="bg-purple-50 p-4 rounded-lg">
+                      <p className="text-purple-700 mb-2">
+                        <strong>Invite-Only Event</strong>
+                      </p>
+                      <p className="text-purple-600">
+                        This is a booked mic event. Performers are invited by the host. You have not been invited to this event.
+                      </p>
+                    </div>
+                  )
                 ) : !user ? (
                   <div className="bg-gray-50 p-4 rounded-lg">
                     <p className="text-gray-600 mb-4">
@@ -1376,7 +1435,9 @@ export default function EventDetail() {
       {showSignupForm && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-lg p-6 w-full max-w-md">
-            <h3 className="text-lg font-semibold mb-4">Sign Up to Perform</h3>
+            <h3 className="text-lg font-semibold mb-4">
+              {isHost ? 'Add Myself as Performer' : 'Sign Up to Perform'}
+            </h3>
             <form onSubmit={handleSignup} className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
