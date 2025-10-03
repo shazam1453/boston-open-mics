@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { useAuth } from '../hooks/useAuth'
 import { adminAPI } from '../utils/api'
 import { formatDate, formatTime12Hour } from '../utils/dateTime'
@@ -13,21 +13,9 @@ export default function Admin() {
   const [loadingData, setLoadingData] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
-  const [initialized, setInitialized] = useState(false)
 
-  // Wait for auth to be completely stable before rendering anything
-  React.useEffect(() => {
-    if (!loading) {
-      // Add a small delay to ensure everything is stable
-      const timer = setTimeout(() => {
-        setInitialized(true)
-      }, 100)
-      return () => clearTimeout(timer)
-    }
-  }, [loading])
-
-  // Show loading until everything is initialized
-  if (loading || !initialized) {
+  // Simple loading check - no useEffect
+  if (loading) {
     return <div className="flex justify-center items-center h-64">Loading...</div>
   }
 
@@ -181,13 +169,11 @@ export default function Admin() {
   // Handle tab change with manual loading
   const handleTabChange = (tab: 'users' | 'events' | 'venues') => {
     setActiveTab(tab)
+    setSearchQuery('') // Reset search when switching tabs
     // Don't automatically load - user will click refresh button
   }
 
-  // Reset search when switching tabs
-  useEffect(() => {
-    setSearchQuery('')
-  }, [activeTab])
+  // Reset search when switching tabs (handled manually in handleTabChange)
 
   // Filter functions
   const filteredUsers = users.filter(user => 
