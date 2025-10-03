@@ -562,7 +562,7 @@ export default function EventDetail() {
                     <span>💬</span>
                     <span>Create Event Chat</span>
                   </button>
-                ) : hasGroupChat || userSignup ? (
+                ) : hasGroupChat && userSignup ? (
                   <button
                     onClick={handleJoinGroupChat}
                     disabled={joiningGroupChat}
