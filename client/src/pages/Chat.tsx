@@ -74,8 +74,14 @@ export default function Chat() {
 
   return (
     <div className="h-screen flex bg-gray-50">
-      {/* Conversations Sidebar */}
-      <div className="w-1/3 bg-white border-r border-gray-200 flex flex-col">
+      {/* Mobile: Single view with toggle between conversations and messages */}
+      {/* Desktop: Side-by-side layout */}
+      
+      {/* Conversations Sidebar - Hidden on mobile when chat is selected */}
+      <div className={`
+        ${selectedConversation ? 'hidden md:flex' : 'flex'} 
+        w-full md:w-1/3 bg-white border-r border-gray-200 flex-col
+      `}>
         <div className="p-4 border-b border-gray-200">
           <div className="flex justify-between items-center">
             <h1 className="text-xl font-bold">Messages</h1>
@@ -83,7 +89,8 @@ export default function Chat() {
               onClick={() => setShowStartChat(true)}
               className="btn btn-primary btn-sm"
             >
-              New Chat
+              <span className="hidden sm:inline">New Chat</span>
+              <span className="sm:hidden">+</span>
             </button>
           </div>
         </div>
@@ -101,27 +108,59 @@ export default function Chat() {
             <ChatConversationList
               conversations={conversations}
               selectedConversation={selectedConversation}
-              onSelectConversation={setSelectedConversation}
+              onSelectConversation={(conversation) => {
+                setSelectedConversation(conversation)
+                // On mobile, selecting a conversation hides the sidebar
+              }}
               currentUserId={user.id.toString()}
             />
           )}
         </div>
       </div>
 
-      {/* Messages Area */}
-      <div className="flex-1 flex flex-col">
+      {/* Messages Area - Hidden on mobile when no chat selected */}
+      <div className={`
+        ${selectedConversation ? 'flex' : 'hidden md:flex'} 
+        flex-1 flex-col
+      `}>
         {selectedConversation ? (
-          <ChatMessageView
-            conversation={selectedConversation}
-            currentUserId={user.id.toString()}
-            onMessageSent={loadConversations}
-          />
+          <div className="flex flex-col h-full">
+            {/* Mobile: Back button header */}
+            <div className="md:hidden bg-white border-b border-gray-200 p-4">
+              <div className="flex items-center space-x-3">
+                <button
+                  onClick={() => setSelectedConversation(null)}
+                  className="text-gray-600 hover:text-gray-800"
+                >
+                  ← Back
+                </button>
+                <div className="flex-1">
+                  <h2 className="font-semibold text-gray-900">
+                    {selectedConversation.type === 'group' 
+                      ? selectedConversation.title 
+                      : selectedConversation.other_user_name || 'Chat'
+                    }
+                  </h2>
+                </div>
+              </div>
+            </div>
+            
+            {/* Chat messages */}
+            <div className="flex-1">
+              <ChatMessageView
+                conversation={selectedConversation}
+                currentUserId={user.id.toString()}
+                onMessageSent={loadConversations}
+              />
+            </div>
+          </div>
         ) : (
           <div className="flex-1 flex items-center justify-center text-gray-500">
             <div className="text-center">
               <div className="text-6xl mb-4">💬</div>
               <h2 className="text-xl font-semibold mb-2">Select a conversation</h2>
-              <p>Choose a conversation from the sidebar to start messaging</p>
+              <p className="hidden md:block">Choose a conversation from the sidebar to start messaging</p>
+              <p className="md:hidden">No conversations selected</p>
             </div>
           </div>
         )}
