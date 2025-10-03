@@ -1088,7 +1088,7 @@ exports.handler = async (event, context) => {
     
     // Get events by host
     if (path.match(/^\/api\/events\/host\/[^\/]+$/) && httpMethod === 'GET') {
-      const hostId = path.split('/')[3];
+      const hostId = path.split('/')[4];
       
       try {
         const result = await dynamodb.scan({
