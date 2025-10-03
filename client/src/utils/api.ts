@@ -220,10 +220,10 @@ export const signupsAPI = {
 
 // Recurring Events API
 export const recurringEventsAPI = {
-  getByVenue: (venueId: number) => api.get<RecurringEventTemplate[]>(`/recurring-events/venue/${venueId}`),
+  getByVenue: (venueId: string | number) => api.get<RecurringEventTemplate[]>(`/recurring-events/venue/${venueId}`),
   
   create: (templateData: {
-    venueId: number
+    venueId: string | number
     title: string
     description?: string
     startTime: string

@@ -357,7 +357,7 @@ export default function Profile() {
       const response = await eventsAPI.create({
         title: eventForm.title,
         description: eventForm.description,
-        venueId: parseInt(eventForm.venueId),
+        venueId: eventForm.venueId,
         date: eventForm.date,
         startTime: eventForm.startTime,
         endTime: eventForm.endTime,
@@ -457,7 +457,7 @@ export default function Profile() {
     try {
       const templateData = {
         ...recurringForm,
-        venueId: parseInt(recurringForm.venueId),
+        venueId: recurringForm.venueId,
         maxPerformers: parseInt(recurringForm.maxPerformers),
         performanceLength: parseInt(recurringForm.performanceLength),
         recurrencePattern: 'weekly', // Always weekly
@@ -595,7 +595,7 @@ export default function Profile() {
       const response = await eventsAPI.update(editingEvent.id, {
         title: eventForm.title,
         description: eventForm.description,
-        venue_id: parseInt(eventForm.venueId),
+        venue_id: eventForm.venueId,
         date: eventForm.date,
         start_time: eventForm.startTime,
         end_time: eventForm.endTime,
