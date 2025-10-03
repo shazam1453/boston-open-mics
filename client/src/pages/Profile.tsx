@@ -376,7 +376,12 @@ export default function Profile() {
         // For booked mic events, send invites to selected performers
         for (const performer of selectedPerformers) {
           try {
-            await eventsAPI.sendInvite(createdEvent.id, performer.id)
+            await invitationsAPI.create({
+              eventId: createdEvent.id,
+              inviteeId: performer.id,
+              type: 'performer',
+              message: `You've been invited to perform at ${createdEvent.title}`
+            })
           } catch (error) {
             console.error('Error sending invite:', error)
             // Continue with other invites even if one fails
