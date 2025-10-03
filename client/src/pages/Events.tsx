@@ -7,7 +7,7 @@ import { PERFORMANCE_TYPES } from '../constants/formOptions'
 import type { Event, Signup } from '../types'
 
 export default function Events() {
-  const { user } = useAuth()
+  const { user, loading: authLoading } = useAuth()
   const [events, setEvents] = useState<Event[]>([])
   const [userSignups, setUserSignups] = useState<Signup[]>([])
   const [loading, setLoading] = useState(true)
@@ -78,8 +78,17 @@ export default function Events() {
 
   useEffect(() => {
     const fetchData = async () => {
+      // Don't fetch data until auth loading is complete
+      if (authLoading) return
+      
+      setLoading(true)
+      setError(null)
+      
       try {
+        console.log('Fetching events...', { user: user?.id, authLoading })
         const eventsResponse = await eventsAPI.getAll()
+        console.log('Events fetched:', eventsResponse.data.length)
+        
         // First filter out old events (ended more than 12 hours ago)
         const recentEvents = filterOldEvents(eventsResponse.data)
         // Then filter recurring events to show only next occurrence
@@ -87,19 +96,31 @@ export default function Events() {
         setEvents(filteredEvents)
         
         if (user) {
+          console.log('Fetching user signups...')
           const signupsResponse = await signupsAPI.getMySignups()
+          console.log('User signups fetched:', signupsResponse.data.length)
           setUserSignups(signupsResponse.data)
+        } else {
+          // Clear user signups if no user
+          setUserSignups([])
         }
-      } catch (err) {
-        setError('Failed to load events')
-        console.error('Error fetching events:', err)
+        console.log('Data fetch completed successfully')
+      } catch (err: any) {
+        const errorMessage = err.response?.data?.message || err.message || 'Failed to load events'
+        setError(errorMessage)
+        console.error('Error fetching events:', {
+          error: err,
+          status: err.response?.status,
+          data: err.response?.data,
+          message: errorMessage
+        })
       } finally {
         setLoading(false)
       }
     }
 
     fetchData()
-  }, [user])
+  }, [user, authLoading])
 
   const handleQuickSignup = async (eventId: string | number) => {
     if (!user) return
@@ -176,23 +197,54 @@ export default function Events() {
     }
   }
 
-  if (loading) {
+  if (authLoading || loading) {
     return (
-      <div className="flex justify-center items-center h-64">
-        <div className="text-lg">Loading events...</div>
+      <div className="flex flex-col justify-center items-center h-64">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600 mb-4"></div>
+        <div className="text-lg text-gray-600">
+          {authLoading ? 'Loading...' : 'Loading events...'}
+        </div>
       </div>
     )
   }
 
-  if (error) {
+  const handleRetry = () => {
+    setError(null)
+    setLoading(true)
+    // Trigger the useEffect to refetch data
+    const fetchData = async () => {
+      try {
+        const eventsResponse = await eventsAPI.getAll()
+        const recentEvents = filterOldEvents(eventsResponse.data)
+        const filteredEvents = filterRecurringEvents(recentEvents)
+        setEvents(filteredEvents)
+        
+        if (user) {
+          const signupsResponse = await signupsAPI.getMySignups()
+          setUserSignups(signupsResponse.data)
+        } else {
+          setUserSignups([])
+        }
+      } catch (err) {
+        setError('Failed to load events')
+        console.error('Error fetching events:', err)
+      } finally {
+        setLoading(false)
+      }
+    }
+    fetchData()
+  }
+
+  if (error && events.length === 0) {
     return (
       <div className="text-center text-red-600">
         <p>{error}</p>
         <button 
-          onClick={() => window.location.reload()} 
+          onClick={handleRetry}
           className="btn btn-primary mt-4"
+          disabled={loading}
         >
-          Try Again
+          {loading ? 'Retrying...' : 'Try Again'}
         </button>
       </div>
     )
@@ -207,14 +259,28 @@ export default function Events() {
       </div>
 
       {error && (
-        <div className="mb-4 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded">
-          {error}
-          <button 
-            onClick={() => setError(null)}
-            className="ml-2 text-red-500 hover:text-red-700"
-          >
-            ×
-          </button>
+        <div className="mb-4 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded flex justify-between items-center">
+          <div>
+            <strong>Error:</strong> {error}
+            {events.length > 0 && (
+              <div className="text-sm mt-1">Showing cached events. Click retry to refresh.</div>
+            )}
+          </div>
+          <div className="flex space-x-2">
+            <button 
+              onClick={handleRetry}
+              className="text-red-600 hover:text-red-800 underline text-sm"
+              disabled={loading}
+            >
+              {loading ? 'Retrying...' : 'Retry'}
+            </button>
+            <button 
+              onClick={() => setError(null)}
+              className="text-red-500 hover:text-red-700 text-lg leading-none"
+            >
+              ×
+            </button>
+          </div>
         </div>
       )}
 
