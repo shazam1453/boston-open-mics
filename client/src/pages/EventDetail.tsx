@@ -494,7 +494,7 @@ export default function EventDetail() {
     setDraggedSignupId(null)
   }
 
-  const handleUpdatePerformerLength = async (signupId: string | number, length: number) => {
+  const handleUpdatePerformerLength = async (signupId: string | number, length: string) => {
     if (!event || !isHost) return
 
     try {
@@ -610,9 +610,22 @@ export default function EventDetail() {
   }
 
   const calculateTotalRuntime = () => {
-    return sortedSignups.reduce((total, signup) => {
-      return total + (signup.individual_performance_length || event?.performance_length || 5)
-    }, 0)
+    let totalMinutes = 0
+    let hasNonNumeric = false
+    
+    sortedSignups.forEach(signup => {
+      const length = signup.individual_performance_length || `${event?.performance_length || 5} min`
+      
+      // Try to extract numeric value from string
+      const numericMatch = length.toString().match(/(\d+)/)
+      if (numericMatch) {
+        totalMinutes += parseInt(numericMatch[1])
+      } else {
+        hasNonNumeric = true
+      }
+    })
+    
+    return { totalMinutes, hasNonNumeric }
   }
 
   if (loading) {
@@ -1095,18 +1108,16 @@ export default function EventDetail() {
                               <div className="flex items-center space-x-2">
                                 <label className="text-sm text-gray-600">Length:</label>
                                 <input
-                                  type="number"
-                                  min="1"
-                                  max="60"
-                                  value={signup.individual_performance_length || event.performance_length}
-                                  onChange={(e) => handleUpdatePerformerLength(signup.id, parseInt(e.target.value))}
-                                  className="w-16 px-2 py-1 text-sm border border-gray-300 rounded"
+                                  type="text"
+                                  placeholder="e.g. 5 min, 2 songs"
+                                  value={signup.individual_performance_length || `${event.performance_length} min`}
+                                  onChange={(e) => handleUpdatePerformerLength(signup.id, e.target.value)}
+                                  className="w-24 px-2 py-1 text-sm border border-gray-300 rounded"
                                 />
-                                <span className="text-sm text-gray-500">min</span>
                               </div>
                             ) : (
                               <div className="text-sm text-gray-500">
-                                {signup.individual_performance_length || event.performance_length} min
+                                {signup.individual_performance_length || `${event.performance_length} min`}
                               </div>
                             )}
                             
@@ -1142,12 +1153,20 @@ export default function EventDetail() {
                   {isHost && (
                     <div className="mt-4 p-3 bg-gray-50 rounded-lg">
                       <p className="text-sm text-gray-700">
-                        <strong>Total Show Length:</strong> {calculateTotalRuntime()} minutes
-                        {sortedSignups.length > 0 && (
-                          <span className="ml-2 text-gray-500">
-                            ({sortedSignups.length} performer{sortedSignups.length !== 1 ? 's' : ''})
-                          </span>
-                        )}
+                        <strong>Estimated Show Length:</strong> {(() => {
+                          const { totalMinutes, hasNonNumeric } = calculateTotalRuntime()
+                          return (
+                            <>
+                              {totalMinutes} minutes
+                              {hasNonNumeric && <span className="text-gray-500"> (+ custom lengths)</span>}
+                              {sortedSignups.length > 0 && (
+                                <span className="ml-2 text-gray-500">
+                                  ({sortedSignups.length} performer{sortedSignups.length !== 1 ? 's' : ''})
+                                </span>
+                              )}
+                            </>
+                          )
+                        })()}
                       </p>
                     </div>
                   )}

@@ -147,7 +147,7 @@ export const eventsAPI = {
   updatePerformerOrder: (eventId: string | number, performerOrder: { signupId: string | number; order: number; performanceLength?: number }[]) =>
     api.put<{ signups: Signup[] }>(`/events/${eventId}/performer-order`, { performerOrder }),
   
-  updatePerformerLength: (signupId: string | number, performanceLength: number) =>
+  updatePerformerLength: (signupId: string | number, performanceLength: string) =>
     api.put<{ signup: Signup }>(`/signups/${signupId}/performance-length`, { performanceLength }),
 
   // Host management methods

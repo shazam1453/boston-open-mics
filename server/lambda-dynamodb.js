@@ -275,7 +275,8 @@ exports.handler = async (event, context) => {
               'GET /api/signups/my-signups',
               'PUT /api/signups/event/{eventId}/order',
               'PUT /api/signups/{id}/finish',
-              'PUT /api/signups/{id}/unfinish'
+              'PUT /api/signups/{id}/unfinish',
+              'PUT /api/signups/{id}/performance-length'
             ],
             users: [
               'GET /api/users/search'
@@ -2003,6 +2004,71 @@ exports.handler = async (event, context) => {
         ExpressionAttributeValues: {
           ':finished': false,
           ':finished_at': null,
+          ':updated_at': new Date().toISOString()
+        }
+      }).promise();
+      
+      const updatedSignupResult = await dynamodb.get({
+        TableName: SIGNUPS_TABLE,
+        Key: { id: signupId }
+      }).promise();
+      
+      return {
+        statusCode: 200,
+        headers: corsHeaders,
+        body: JSON.stringify({ signup: updatedSignupResult.Item })
+      };
+    }
+    
+    // Update individual performance length endpoint
+    if (path.match(/^\/api\/signups\/[^\/]+\/performance-length$/) && httpMethod === 'PUT') {
+      const user = await authenticate();
+      if (!user) {
+        return {
+          statusCode: 401,
+          headers: corsHeaders,
+          body: JSON.stringify({ message: 'Unauthorized' })
+        };
+      }
+      
+      const signupId = path.split('/')[3];
+      const { performanceLength } = requestBody;
+      
+      // Get the signup to check if user is the event host
+      const signupResult = await dynamodb.get({
+        TableName: SIGNUPS_TABLE,
+        Key: { id: signupId }
+      }).promise();
+      
+      if (!signupResult.Item) {
+        return {
+          statusCode: 404,
+          headers: corsHeaders,
+          body: JSON.stringify({ message: 'Signup not found' })
+        };
+      }
+      
+      // Get the event to check if user is the host
+      const eventResult = await dynamodb.get({
+        TableName: EVENTS_TABLE,
+        Key: { id: signupResult.Item.event_id }
+      }).promise();
+      
+      if (!eventResult.Item || eventResult.Item.host_id !== user.id) {
+        return {
+          statusCode: 403,
+          headers: corsHeaders,
+          body: JSON.stringify({ message: 'Only event hosts can update performance lengths' })
+        };
+      }
+      
+      // Update the performance length
+      await dynamodb.update({
+        TableName: SIGNUPS_TABLE,
+        Key: { id: signupId },
+        UpdateExpression: 'SET individual_performance_length = :length, updated_at = :updated_at',
+        ExpressionAttributeValues: {
+          ':length': performanceLength,
           ':updated_at': new Date().toISOString()
         }
       }).promise();
