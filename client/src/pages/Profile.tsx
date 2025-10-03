@@ -24,6 +24,8 @@ export default function Profile() {
   const [showChangePassword, setShowChangePassword] = useState(false)
   const [, setSelectedVenue] = useState<string | number | null>(null)
   const [editingEvent, setEditingEvent] = useState<Event | null>(null)
+  const [editingVenue, setEditingVenue] = useState<Venue | null>(null)
+  const [showEditVenueForm, setShowEditVenueForm] = useState(false)
 
   // Debug effect to monitor state changes
   useEffect(() => {
@@ -597,6 +599,69 @@ export default function Profile() {
     }
   }
 
+  const handleEditVenue = (venue: Venue) => {
+    setEditingVenue(venue)
+    setVenueForm({
+      name: venue.name || '',
+      address: venue.address || '',
+      phone: venue.phone || '',
+      email: venue.email || '',
+      description: venue.description || '',
+      capacity: venue.capacity?.toString() || '',
+      amenities: venue.amenities || []
+    })
+    setShowEditVenueForm(true)
+  }
+
+  const handleUpdateVenue = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!editingVenue) return
+    
+    setSubmitting(true)
+    try {
+      const response = await venuesAPI.update(editingVenue.id, {
+        ...venueForm,
+        capacity: venueForm.capacity ? parseInt(venueForm.capacity) : undefined
+      })
+      
+      // Update the venue in the state
+      setVenues(prev => prev.map(v => v.id === editingVenue.id ? response.data.venue : v))
+      
+      setShowEditVenueForm(false)
+      setEditingVenue(null)
+      setVenueForm({
+        name: '',
+        address: '',
+        phone: '',
+        email: '',
+        description: '',
+        capacity: '',
+        amenities: []
+      })
+    } catch (error: any) {
+      console.error('Error updating venue:', error)
+      setError(error.response?.data?.message || 'Failed to update venue')
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  const handleDeleteVenue = async (venueId: string | number) => {
+    if (!confirm('Are you sure you want to delete this venue? This action cannot be undone and will affect any events using this venue.')) {
+      return
+    }
+    
+    try {
+      await venuesAPI.delete(venueId)
+      
+      // Remove the venue from the state
+      setVenues(prev => prev.filter(v => v.id !== venueId))
+    } catch (error: any) {
+      console.error('Error deleting venue:', error)
+      setError(error.response?.data?.message || 'Failed to delete venue')
+    }
+  }
+
   if (loading) {
     return <div className="text-center">Loading...</div>
   }
@@ -800,7 +865,18 @@ export default function Profile() {
                     {venue.phone && <div>Phone: {venue.phone}</div>}
                   </div>
                   <div className="flex space-x-2">
-                    <button className="btn btn-secondary text-sm">Edit</button>
+                    <button 
+                      onClick={() => handleEditVenue(venue)}
+                      className="btn btn-secondary text-sm"
+                    >
+                      Edit
+                    </button>
+                    <button
+                      onClick={() => handleDeleteVenue(venue.id)}
+                      className="btn btn-red text-sm"
+                    >
+                      Delete
+                    </button>
                     <button
                       onClick={() => {
                         setSelectedVenue(venue.id)
@@ -915,6 +991,115 @@ export default function Profile() {
                     <button
                       type="button"
                       onClick={() => setShowVenueForm(false)}
+                      className="btn btn-secondary flex-1"
+                      disabled={submitting}
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          )}
+
+          {/* Edit Venue Modal */}
+          {showEditVenueForm && (
+            <div 
+              className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50"
+              onClick={() => setShowEditVenueForm(false)}
+            >
+              <div 
+                className="bg-white rounded-lg p-6 w-full max-w-md max-h-[90vh] overflow-y-auto"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <h3 className="text-lg font-semibold mb-4">Edit Venue</h3>
+                <form onSubmit={handleUpdateVenue} className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Venue Name *
+                    </label>
+                    <input
+                      type="text"
+                      value={venueForm.name}
+                      onChange={(e) => setVenueForm(prev => ({ ...prev, name: e.target.value }))}
+                      className="input"
+                      required
+                    />
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Address *
+                    </label>
+                    <input
+                      type="text"
+                      value={venueForm.address}
+                      onChange={(e) => setVenueForm(prev => ({ ...prev, address: e.target.value }))}
+                      className="input"
+                      required
+                    />
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Phone
+                    </label>
+                    <input
+                      type="tel"
+                      value={venueForm.phone}
+                      onChange={(e) => setVenueForm(prev => ({ ...prev, phone: e.target.value }))}
+                      className="input"
+                    />
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Email
+                    </label>
+                    <input
+                      type="email"
+                      value={venueForm.email}
+                      onChange={(e) => setVenueForm(prev => ({ ...prev, email: e.target.value }))}
+                      className="input"
+                    />
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Description
+                    </label>
+                    <textarea
+                      value={venueForm.description}
+                      onChange={(e) => setVenueForm(prev => ({ ...prev, description: e.target.value }))}
+                      className="input"
+                      rows={3}
+                    />
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Capacity
+                    </label>
+                    <input
+                      type="number"
+                      value={venueForm.capacity}
+                      onChange={(e) => setVenueForm(prev => ({ ...prev, capacity: e.target.value }))}
+                      className="input"
+                      min="1"
+                    />
+                  </div>
+                  
+                  <div className="flex space-x-3 pt-4">
+                    <button 
+                      type="submit" 
+                      className="btn btn-primary flex-1"
+                      disabled={submitting}
+                    >
+                      {submitting ? 'Updating...' : 'Update Venue'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setShowEditVenueForm(false)}
                       className="btn btn-secondary flex-1"
                       disabled={submitting}
                     >
