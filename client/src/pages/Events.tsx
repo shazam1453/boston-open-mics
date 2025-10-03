@@ -189,6 +189,11 @@ export default function Events() {
   }
 
   const getSignupStatus = (event: Event) => {
+    // Handle booked mic events first
+    if (event.signup_list_mode === 'booked_mic') {
+      return { status: 'invite-only', message: 'Invite Only', color: 'bg-purple-100 text-purple-800' }
+    }
+
     const now = new Date()
     const signupOpens = event.signup_opens ? new Date(event.signup_opens) : null
     const signupDeadline = event.signup_deadline ? new Date(event.signup_deadline) : null
