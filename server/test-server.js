@@ -708,7 +708,7 @@ let mockSignups = loadedSignups.length > 0 ? loadedSignups : [
 app.post('/api/auth/login', (req, res) => {
   const { email, password } = req.body;
   
-  console.log('Login attempt:', { email, password, userExists: !!mockUsers[email] });
+  console.log('Login attempt:', { email, userExists: !!mockUsers[email] });
   
   if (password === 'password' && mockUsers[email]) {
     const token = `mock-jwt-token-${Date.now()}-${Math.random()}`;
@@ -722,7 +722,7 @@ app.post('/api/auth/login', (req, res) => {
       user: mockUsers[email]
     });
   } else {
-    console.log('Login failed for:', email, 'Password:', password);
+    console.log('Login failed for:', email);
     res.status(400).json({ message: 'Invalid credentials' });
   }
 });
