@@ -3249,6 +3249,8 @@ Questions? Contact ${inviterName} at ${inviterEmail}
         const eventId = path.split('/')[3];
         const { performerName, performanceName, performanceType, notes } = requestBody;
 
+        console.log('Walk-in request data:', { eventId, performerName, performanceName, performanceType, notes });
+
         if (!performerName) {
           return {
             statusCode: 400,
@@ -3300,20 +3302,27 @@ Questions? Contact ${inviterName} at ${inviterEmail}
           event_id: eventId,
           user_id: null, // Walk-ins don't have user accounts
           performer_name: performerName,
-          performance_name: performanceName,
+          performance_name: performanceName || performerName, // Use performer name as fallback
           performance_type: performanceType || 'music',
           notes: notes || '',
           performance_order: maxOrder + 1,
           is_walk_in: true,
           signed_up_at: new Date().toISOString(),
           is_finished: false,
-          is_current_performer: false
+          is_current_performer: false,
+          status: 'confirmed', // Add status field that might be required
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
         };
+
+        console.log('Creating walk-in signup:', walkInSignup);
 
         await dynamodb.put({
           TableName: SIGNUPS_TABLE,
           Item: walkInSignup
         }).promise();
+
+        console.log('Walk-in signup created successfully');
 
         return {
           statusCode: 201,
@@ -3325,10 +3334,15 @@ Questions? Contact ${inviterName} at ${inviterEmail}
         };
       } catch (error) {
         console.error('Error adding walk-in performer:', error);
+        console.error('Error details:', error.message);
+        console.error('Error stack:', error.stack);
         return {
           statusCode: 500,
           headers: corsHeaders,
-          body: JSON.stringify({ message: 'Failed to add walk-in performer' })
+          body: JSON.stringify({ 
+            message: 'Failed to add walk-in performer',
+            error: error.message 
+          })
         };
       }
     }
