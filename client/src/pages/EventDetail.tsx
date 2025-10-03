@@ -703,47 +703,46 @@ export default function EventDetail() {
                 ) : null}
               </>
             )}
-            
-
-            {/* Host Controls */}
-            {isHost && event.event_status !== 'finished' && (
-              <div className="space-y-3 sm:space-y-0 sm:flex sm:flex-row sm:gap-3">
-                {/* Edit Event and Add Participants - Available for all non-finished events */}
-                <button
-                  onClick={() => setShowEditEventForm(true)}
-                  className="btn btn-secondary w-full sm:w-auto py-3 px-4 text-base font-medium"
-                >
-                  ✏️ Edit Event
-                </button>
-                <button
-                  onClick={() => setShowAddParticipantsModal(true)}
-                  className="btn bg-purple-600 text-white hover:bg-purple-700 w-full sm:w-auto py-3 px-4 text-base font-medium"
-                >
-                  👥 Add Participants
-                </button>
-                
-                {/* Event Status Controls */}
-                {event.event_status === 'live' ? (
-                  <button
-                    onClick={handleFinishEvent}
-                    disabled={submitting}
-                    className="btn bg-red-600 text-white hover:bg-red-700 w-full sm:w-auto py-3 px-4 text-base font-medium"
-                  >
-                    {submitting ? 'Finishing...' : 'Finish Event'}
-                  </button>
-                ) : (
-                  <button
-                    onClick={handleStartEvent}
-                    disabled={submitting}
-                    className="btn btn-primary w-full sm:w-auto py-3 px-4 text-base font-medium"
-                  >
-                    {submitting ? 'Starting...' : 'Start Event'}
-                  </button>
-                )}
-              </div>
-            )}
           </div>
         </div>
+
+        {/* Host Controls - Moved outside header for proper alignment */}
+        {isHost && event.event_status !== 'finished' && (
+          <div className="mb-6 space-y-3 sm:space-y-0 sm:flex sm:flex-row sm:gap-3">
+            {/* Edit Event and Add Participants - Available for all non-finished events */}
+            <button
+              onClick={() => setShowEditEventForm(true)}
+              className="btn btn-secondary w-full sm:w-auto py-3 px-4 text-base font-medium"
+            >
+              ✏️ Edit Event
+            </button>
+            <button
+              onClick={() => setShowAddParticipantsModal(true)}
+              className="btn bg-purple-600 text-white hover:bg-purple-700 w-full sm:w-auto py-3 px-4 text-base font-medium"
+            >
+              👥 Add Participants
+            </button>
+            
+            {/* Event Status Controls */}
+            {event.event_status === 'live' ? (
+              <button
+                onClick={handleFinishEvent}
+                disabled={submitting}
+                className="btn bg-red-600 text-white hover:bg-red-700 w-full sm:w-auto py-3 px-4 text-base font-medium"
+              >
+                {submitting ? 'Finishing...' : 'Finish Event'}
+              </button>
+            ) : (
+              <button
+                onClick={handleStartEvent}
+                disabled={submitting}
+                className="btn btn-primary w-full sm:w-auto py-3 px-4 text-base font-medium"
+              >
+                {submitting ? 'Starting...' : 'Start Event'}
+              </button>
+            )}
+          </div>
+        )}
 
         <div className="grid sm:grid-cols-1 lg:grid-cols-2 gap-6 lg:gap-8">
           <div>
