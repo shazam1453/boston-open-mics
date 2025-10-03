@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { eventsAPI, signupsAPI } from '../utils/api'
 import { useAuth } from '../hooks/useAuth'
-import { formatTime12Hour, formatTimeOnly12Hour } from '../utils/dateTime'
+import { formatTime12Hour, formatTimeOnly12Hour, formatDate } from '../utils/dateTime'
 import { PERFORMANCE_TYPES } from '../constants/formOptions'
 import type { Event, Signup } from '../types'
 
@@ -457,7 +457,7 @@ export default function Events() {
                 
                 <div className="space-y-2 text-sm text-gray-500 mb-4">
                   <div>📍 {event.venue_name}</div>
-                  <div>📅 {new Date(event.date).toLocaleDateString()}</div>
+                  <div>📅 {formatDate(event.date)}</div>
                   <div>🕐 {formatTime12Hour(event.start_time)} - {formatTime12Hour(event.end_time)}</div>
                   <div>
                     👥 {event.current_signups}/{event.max_performers} performers

@@ -21,7 +21,7 @@ export default function TimePicker({
 
   // Parse the 24-hour time value into 12-hour components
   useEffect(() => {
-    if (value) {
+    if (value && value !== '') {
       const [h, m] = value.split(':')
       const hour24 = parseInt(h)
       const hour12 = hour24 === 0 ? 12 : hour24 > 12 ? hour24 - 12 : hour24
@@ -30,12 +30,20 @@ export default function TimePicker({
       setHour(hour12.toString())
       setMinute(m)
       setPeriod(periodValue)
-    } else if (value === '') {
-      // If value is empty, set default time and notify parent
-      const defaultTime = '20:00' // 8:00 PM
+    } else if (value === '' || value === undefined) {
+      // If value is empty or undefined, use the default UI state (8 PM) and notify parent
+      const defaultTime = '20:00' // 8:00 PM (matches the default UI state)
       onChange(defaultTime)
     }
   }, [value, onChange])
+
+  // Also set default on component mount if no initial value
+  useEffect(() => {
+    if (!value || value === '') {
+      const defaultTime = '20:00' // 8:00 PM
+      onChange(defaultTime)
+    }
+  }, []) // Only run on mount
 
   // Convert 12-hour time to 24-hour format and call onChange
   const updateTime = (newHour: string, newMinute: string, newPeriod: string) => {
