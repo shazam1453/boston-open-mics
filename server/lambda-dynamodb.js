@@ -187,9 +187,14 @@ exports.handler = async (event, context) => {
               'GET /api/chat/conversations/{id}/messages',
               'POST /api/chat/conversations/{id}/messages',
               'PUT /api/chat/messages/{id}/read',
+              'POST /api/events/{id}/chat/create',
               'GET /api/events/{id}/chat',
               'POST /api/events/{id}/chat/join',
               'POST /api/events/{id}/chat/leave'
+            ],
+            'host-management': [
+              'DELETE /api/events/{id}/performers/{signupId}/remove',
+              'POST /api/events/{id}/walk-ins'
             ]
           }
         })
@@ -805,47 +810,6 @@ exports.handler = async (event, context) => {
         TableName: EVENTS_TABLE,
         Item: newEvent
       }).promise();
-
-      // Create group chat for the event
-      try {
-        const groupChatId = uuidv4();
-        const groupChat = {
-          id: groupChatId,
-          type: 'group',
-          event_id: newEvent.id,
-          title: `${newEvent.title} - Event Chat`,
-          created_by: user.id,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-          last_message_id: null,
-          last_message_at: null
-        };
-
-        // Create the group conversation
-        await dynamodb.put({
-          TableName: CONVERSATIONS_TABLE,
-          Item: groupChat
-        }).promise();
-
-        // Add the event host as the first participant
-        const hostParticipant = {
-          id: uuidv4(),
-          conversation_id: groupChatId,
-          user_id: user.id,
-          joined_at: new Date().toISOString(),
-          role: 'admin'
-        };
-
-        await dynamodb.put({
-          TableName: CONVERSATION_PARTICIPANTS_TABLE,
-          Item: hostParticipant
-        }).promise();
-
-        console.log(`Created group chat ${groupChatId} for event ${newEvent.id}`);
-      } catch (error) {
-        console.error('Failed to create group chat for event:', error);
-        // Don't fail the event creation if group chat creation fails
-      }
 
       return {
         statusCode: 201,
@@ -2421,7 +2385,299 @@ Questions? Contact ${inviterName} at ${inviterEmail}
       }
     }
 
+    // ===== ENHANCED HOST MANAGEMENT ENDPOINTS =====
+
+    // Remove performer from event (host only)
+    if (path.match(/^\/api\/events\/[^\/]+\/performers\/[^\/]+\/remove$/) && httpMethod === 'DELETE') {
+      const user = authenticate();
+      if (!user) {
+        return {
+          statusCode: 401,
+          headers: corsHeaders,
+          body: JSON.stringify({ message: 'Unauthorized' })
+        };
+      }
+
+      try {
+        const eventId = path.split('/')[3];
+        const signupId = path.split('/')[5];
+
+        // Check if user is the event host
+        const eventResult = await dynamodb.get({
+          TableName: EVENTS_TABLE,
+          Key: { id: eventId }
+        }).promise();
+
+        if (!eventResult.Item) {
+          return {
+            statusCode: 404,
+            headers: corsHeaders,
+            body: JSON.stringify({ message: 'Event not found' })
+          };
+        }
+
+        const event = eventResult.Item;
+        if (event.host_id !== user.id) {
+          return {
+            statusCode: 403,
+            headers: corsHeaders,
+            body: JSON.stringify({ message: 'Only event hosts can remove performers' })
+          };
+        }
+
+        // Get the signup to remove
+        const signupResult = await dynamodb.get({
+          TableName: SIGNUPS_TABLE,
+          Key: { id: signupId }
+        }).promise();
+
+        if (!signupResult.Item) {
+          return {
+            statusCode: 404,
+            headers: corsHeaders,
+            body: JSON.stringify({ message: 'Signup not found' })
+          };
+        }
+
+        const signup = signupResult.Item;
+        if (signup.event_id !== eventId) {
+          return {
+            statusCode: 400,
+            headers: corsHeaders,
+            body: JSON.stringify({ message: 'Signup does not belong to this event' })
+          };
+        }
+
+        // Remove the signup
+        await dynamodb.delete({
+          TableName: SIGNUPS_TABLE,
+          Key: { id: signupId }
+        }).promise();
+
+        return {
+          statusCode: 200,
+          headers: corsHeaders,
+          body: JSON.stringify({ 
+            message: 'Performer removed successfully',
+            removedSignup: signup
+          })
+        };
+      } catch (error) {
+        console.error('Error removing performer:', error);
+        return {
+          statusCode: 500,
+          headers: corsHeaders,
+          body: JSON.stringify({ message: 'Failed to remove performer' })
+        };
+      }
+    }
+
+    // Add walk-in performer (host only)
+    if (path.match(/^\/api\/events\/[^\/]+\/walk-ins$/) && httpMethod === 'POST') {
+      const user = authenticate();
+      if (!user) {
+        return {
+          statusCode: 401,
+          headers: corsHeaders,
+          body: JSON.stringify({ message: 'Unauthorized' })
+        };
+      }
+
+      try {
+        const eventId = path.split('/')[3];
+        const { performerName, performanceName, performanceType, notes } = requestBody;
+
+        if (!performerName || !performanceName) {
+          return {
+            statusCode: 400,
+            headers: corsHeaders,
+            body: JSON.stringify({ message: 'Performer name and performance name are required' })
+          };
+        }
+
+        // Check if user is the event host
+        const eventResult = await dynamodb.get({
+          TableName: EVENTS_TABLE,
+          Key: { id: eventId }
+        }).promise();
+
+        if (!eventResult.Item) {
+          return {
+            statusCode: 404,
+            headers: corsHeaders,
+            body: JSON.stringify({ message: 'Event not found' })
+          };
+        }
+
+        const event = eventResult.Item;
+        if (event.host_id !== user.id) {
+          return {
+            statusCode: 403,
+            headers: corsHeaders,
+            body: JSON.stringify({ message: 'Only event hosts can add walk-in performers' })
+          };
+        }
+
+        // Get current signups to determine order
+        const signupsResult = await dynamodb.query({
+          TableName: SIGNUPS_TABLE,
+          IndexName: 'EventIndex',
+          KeyConditionExpression: 'event_id = :eventId',
+          ExpressionAttributeValues: {
+            ':eventId': eventId
+          }
+        }).promise();
+
+        const maxOrder = signupsResult.Items.length > 0 
+          ? Math.max(...signupsResult.Items.map(s => s.performance_order || 0))
+          : 0;
+
+        // Create walk-in signup
+        const walkInSignup = {
+          id: uuidv4(),
+          event_id: eventId,
+          user_id: null, // Walk-ins don't have user accounts
+          performer_name: performerName,
+          performance_name: performanceName,
+          performance_type: performanceType || 'music',
+          notes: notes || '',
+          performance_order: maxOrder + 1,
+          is_walk_in: true,
+          signed_up_at: new Date().toISOString(),
+          is_finished: false,
+          is_current_performer: false
+        };
+
+        await dynamodb.put({
+          TableName: SIGNUPS_TABLE,
+          Item: walkInSignup
+        }).promise();
+
+        return {
+          statusCode: 201,
+          headers: corsHeaders,
+          body: JSON.stringify({ 
+            message: 'Walk-in performer added successfully',
+            signup: walkInSignup
+          })
+        };
+      } catch (error) {
+        console.error('Error adding walk-in performer:', error);
+        return {
+          statusCode: 500,
+          headers: corsHeaders,
+          body: JSON.stringify({ message: 'Failed to add walk-in performer' })
+        };
+      }
+    }
+
     // ===== EVENT GROUP CHAT ENDPOINTS =====
+
+    // Create event group chat (host only)
+    if (path.match(/^\/api\/events\/[^\/]+\/chat\/create$/) && httpMethod === 'POST') {
+      const user = authenticate();
+      if (!user) {
+        return {
+          statusCode: 401,
+          headers: corsHeaders,
+          body: JSON.stringify({ message: 'Unauthorized' })
+        };
+      }
+
+      try {
+        const eventId = path.split('/')[3];
+
+        // Check if user is the event host
+        const eventResult = await dynamodb.get({
+          TableName: EVENTS_TABLE,
+          Key: { id: eventId }
+        }).promise();
+
+        if (!eventResult.Item) {
+          return {
+            statusCode: 404,
+            headers: corsHeaders,
+            body: JSON.stringify({ message: 'Event not found' })
+          };
+        }
+
+        const event = eventResult.Item;
+        if (event.host_id !== user.id) {
+          return {
+            statusCode: 403,
+            headers: corsHeaders,
+            body: JSON.stringify({ message: 'Only event hosts can create group chats' })
+          };
+        }
+
+        // Check if group chat already exists
+        const existingChatResult = await dynamodb.query({
+          TableName: CONVERSATIONS_TABLE,
+          IndexName: 'EventIndex',
+          KeyConditionExpression: 'event_id = :eventId',
+          ExpressionAttributeValues: {
+            ':eventId': eventId
+          }
+        }).promise();
+
+        if (existingChatResult.Items.length > 0) {
+          return {
+            statusCode: 400,
+            headers: corsHeaders,
+            body: JSON.stringify({ message: 'Group chat already exists for this event' })
+          };
+        }
+
+        // Create group chat
+        const groupChatId = uuidv4();
+        const groupChat = {
+          id: groupChatId,
+          type: 'group',
+          event_id: eventId,
+          title: `${event.title} - Event Chat`,
+          created_by: user.id,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+          last_message_id: null,
+          last_message_at: null
+        };
+
+        await dynamodb.put({
+          TableName: CONVERSATIONS_TABLE,
+          Item: groupChat
+        }).promise();
+
+        // Add the event host as the first participant
+        const hostParticipant = {
+          id: uuidv4(),
+          conversation_id: groupChatId,
+          user_id: user.id,
+          joined_at: new Date().toISOString(),
+          role: 'admin'
+        };
+
+        await dynamodb.put({
+          TableName: CONVERSATION_PARTICIPANTS_TABLE,
+          Item: hostParticipant
+        }).promise();
+
+        return {
+          statusCode: 201,
+          headers: corsHeaders,
+          body: JSON.stringify({ 
+            message: 'Group chat created successfully',
+            conversation: groupChat
+          })
+        };
+      } catch (error) {
+        console.error('Error creating event group chat:', error);
+        return {
+          statusCode: 500,
+          headers: corsHeaders,
+          body: JSON.stringify({ message: 'Failed to create event group chat' })
+        };
+      }
+    }
 
     // Get event group chat
     if (path.match(/^\/api\/events\/[^\/]+\/chat$/) && httpMethod === 'GET') {

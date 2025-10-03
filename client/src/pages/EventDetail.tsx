@@ -19,6 +19,9 @@ export default function EventDetail() {
   const [userSignup, setUserSignup] = useState<Signup | null>(null)
 
   const [joiningGroupChat, setJoiningGroupChat] = useState(false)
+  const [showWalkInForm, setShowWalkInForm] = useState(false)
+  const [showCreateGroupChat, setShowCreateGroupChat] = useState(false)
+  const [hasGroupChat, setHasGroupChat] = useState(false)
   const [addPerformerForm, setAddPerformerForm] = useState({
     performanceName: '',
     performerName: '',
@@ -27,6 +30,12 @@ export default function EventDetail() {
   })
   const [signupForm, setSignupForm] = useState({
     performerName: '',
+    performanceType: 'music',
+    notes: ''
+  })
+  const [walkInForm, setWalkInForm] = useState({
+    performerName: '',
+    performanceName: '',
     performanceType: 'music',
     notes: ''
   })
@@ -48,6 +57,17 @@ export default function EventDetail() {
         if (user) {
           const existingSignup = signupsResponse.data.find(signup => signup.user_id === user.id)
           setUserSignup(existingSignup || null)
+        }
+
+        // Check if event has a group chat (for hosts)
+        if (user && eventResponse.data.host_id === user.id) {
+          try {
+            await chatAPI.getEventGroupChat(id)
+            setHasGroupChat(true)
+          } catch (error) {
+            // No group chat exists yet
+            setHasGroupChat(false)
+          }
         }
       } catch (err) {
         setError('Failed to load event')
@@ -348,6 +368,24 @@ export default function EventDetail() {
     }
   }
 
+  const handleCreateGroupChat = async () => {
+    if (!event || !user) return
+    
+    setJoiningGroupChat(true)
+    try {
+      await chatAPI.createEventGroupChat(event.id)
+      setHasGroupChat(true)
+      setShowCreateGroupChat(false)
+      // Redirect to chat page
+      window.location.href = '/chat'
+    } catch (error: any) {
+      console.error('Error creating group chat:', error)
+      setError(error.response?.data?.message || 'Failed to create group chat')
+    } finally {
+      setJoiningGroupChat(false)
+    }
+  }
+
   const handleJoinGroupChat = async () => {
     if (!event || !user) return
     
@@ -361,6 +399,50 @@ export default function EventDetail() {
       setError(error.response?.data?.message || 'Failed to join group chat')
     } finally {
       setJoiningGroupChat(false)
+    }
+  }
+
+  const handleRemovePerformer = async (signupId: string | number) => {
+    if (!event || !user) return
+    
+    if (!confirm('Are you sure you want to remove this performer? This action cannot be undone.')) {
+      return
+    }
+    
+    setSubmitting(true)
+    try {
+      await eventsAPI.removePerformer(event.id, signupId)
+      setSignups(prev => prev.filter(signup => signup.id !== signupId))
+    } catch (error: any) {
+      console.error('Error removing performer:', error)
+      setError(error.response?.data?.message || 'Failed to remove performer')
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  const handleAddWalkIn = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!event || !user) return
+
+    setSubmitting(true)
+    try {
+      const response = await eventsAPI.addWalkIn(event.id, walkInForm)
+      const newSignup = response.data.signup
+      
+      setSignups(prev => [...prev, newSignup])
+      setWalkInForm({
+        performerName: '',
+        performanceName: '',
+        performanceType: 'music',
+        notes: ''
+      })
+      setShowWalkInForm(false)
+    } catch (error: any) {
+      console.error('Error adding walk-in:', error)
+      setError(error.response?.data?.message || 'Failed to add walk-in performer')
+    } finally {
+      setSubmitting(false)
     }
   }
 
@@ -471,14 +553,26 @@ export default function EventDetail() {
           <div className="flex space-x-2">
             {/* Group Chat Button - Available to signed up users and hosts */}
             {user && (isHost || userSignup) && (
-              <button
-                onClick={handleJoinGroupChat}
-                disabled={joiningGroupChat}
-                className="btn bg-green-600 text-white hover:bg-green-700 flex items-center space-x-2"
-              >
-                <span>💬</span>
-                <span>{joiningGroupChat ? 'Joining...' : 'Event Chat'}</span>
-              </button>
+              <>
+                {isHost && !hasGroupChat ? (
+                  <button
+                    onClick={() => setShowCreateGroupChat(true)}
+                    className="btn bg-green-600 text-white hover:bg-green-700 flex items-center space-x-2"
+                  >
+                    <span>💬</span>
+                    <span>Create Event Chat</span>
+                  </button>
+                ) : hasGroupChat || userSignup ? (
+                  <button
+                    onClick={handleJoinGroupChat}
+                    disabled={joiningGroupChat}
+                    className="btn bg-green-600 text-white hover:bg-green-700 flex items-center space-x-2"
+                  >
+                    <span>💬</span>
+                    <span>{joiningGroupChat ? 'Joining...' : 'Join Event Chat'}</span>
+                  </button>
+                ) : null}
+              </>
             )}
             
             {/* Host Controls */}
@@ -963,17 +1057,36 @@ export default function EventDetail() {
                                 signup.is_finished ? 'bg-gray-50 border-gray-200' : 'bg-white border-gray-300'
                               }`}
                             >
-                              <h4 className={`font-semibold ${signup.is_finished ? 'line-through text-gray-500' : 'text-gray-900'}`}>
-                                {signup.performance_name}
-                              </h4>
-                              <p className={`text-sm ${signup.is_finished ? 'text-gray-400' : 'text-gray-600'}`}>
-                                {signup.user_name || 'Walk-in performer'} • {signup.performance_type}
-                              </p>
-                              {signup.notes && (
-                                <p className={`text-sm mt-1 ${signup.is_finished ? 'text-gray-400' : 'text-gray-500'}`}>
-                                  {signup.notes}
-                                </p>
-                              )}
+                              <div className="flex justify-between items-start">
+                                <div className="flex-1">
+                                  <h4 className={`font-semibold ${signup.is_finished ? 'line-through text-gray-500' : 'text-gray-900'}`}>
+                                    {signup.performance_name}
+                                  </h4>
+                                  <p className={`text-sm ${signup.is_finished ? 'text-gray-400' : 'text-gray-600'}`}>
+                                    {signup.user_name || (signup as any).performer_name || 'Walk-in performer'} • {signup.performance_type}
+                                    {(signup as any).is_walk_in && <span className="ml-2 text-xs bg-yellow-100 text-yellow-800 px-2 py-0.5 rounded">Walk-in</span>}
+                                  </p>
+                                  {signup.notes && (
+                                    <p className={`text-sm mt-1 ${signup.is_finished ? 'text-gray-400' : 'text-gray-500'}`}>
+                                      {signup.notes}
+                                    </p>
+                                  )}
+                                </div>
+                                
+                                {/* Host Controls */}
+                                {isHost && event.event_status !== 'finished' && (
+                                  <div className="flex space-x-2 ml-4">
+                                    <button
+                                      onClick={() => handleRemovePerformer(signup.id)}
+                                      disabled={submitting}
+                                      className="text-red-600 hover:text-red-800 text-sm px-2 py-1 border border-red-300 rounded hover:bg-red-50"
+                                      title="Remove performer"
+                                    >
+                                      Remove
+                                    </button>
+                                  </div>
+                                )}
+                              </div>
                             </div>
                           ))}
                         </div>
@@ -1097,12 +1210,20 @@ export default function EventDetail() {
                     </button>
                   )}
                   {isHost && event.event_status === 'live' && (
-                    <button
-                      onClick={() => setShowAddPerformerForm(true)}
-                      className="btn btn-secondary"
-                    >
-                      Add Performer
-                    </button>
+                    <>
+                      <button
+                        onClick={() => setShowAddPerformerForm(true)}
+                        className="btn btn-secondary"
+                      >
+                        Add Performer
+                      </button>
+                      <button
+                        onClick={() => setShowWalkInForm(true)}
+                        className="btn bg-yellow-600 text-white hover:bg-yellow-700"
+                      >
+                        Add Walk-in
+                      </button>
+                    </>
                   )}
                 </div>
               </div>
@@ -1315,6 +1436,120 @@ export default function EventDetail() {
                   disabled={submitting}
                 >
                   Cancel
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Create Group Chat Modal */}
+      {showCreateGroupChat && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-lg p-6 w-full max-w-md">
+            <h3 className="text-lg font-semibold mb-4">Create Event Group Chat</h3>
+            <p className="text-gray-600 mb-6">
+              Create a group chat for this event where all participants can communicate. 
+              Only signed-up performers will be able to join.
+            </p>
+            <div className="flex space-x-3">
+              <button
+                type="button"
+                onClick={() => setShowCreateGroupChat(false)}
+                className="btn btn-secondary flex-1"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleCreateGroupChat}
+                disabled={joiningGroupChat}
+                className="btn btn-primary flex-1"
+              >
+                {joiningGroupChat ? 'Creating...' : 'Create Chat'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Add Walk-in Modal */}
+      {showWalkInForm && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-lg p-6 w-full max-w-md">
+            <h3 className="text-lg font-semibold mb-4">Add Walk-in Performer</h3>
+            <form onSubmit={handleAddWalkIn} className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Performer Name *
+                </label>
+                <input
+                  type="text"
+                  value={walkInForm.performerName}
+                  onChange={(e) => setWalkInForm(prev => ({ ...prev, performerName: e.target.value }))}
+                  className="input"
+                  placeholder="Walk-in performer's name"
+                  required
+                />
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Performance Name *
+                </label>
+                <input
+                  type="text"
+                  value={walkInForm.performanceName}
+                  onChange={(e) => setWalkInForm(prev => ({ ...prev, performanceName: e.target.value }))}
+                  className="input"
+                  placeholder="Song title, act name, etc."
+                  required
+                />
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Performance Type *
+                </label>
+                <select
+                  value={walkInForm.performanceType}
+                  onChange={(e) => setWalkInForm(prev => ({ ...prev, performanceType: e.target.value }))}
+                  className="input"
+                  required
+                >
+                  {PERFORMANCE_TYPES.map(type => (
+                    <option key={type.value} value={type.value}>{type.label}</option>
+                  ))}
+                </select>
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Notes (Optional)
+                </label>
+                <textarea
+                  value={walkInForm.notes}
+                  onChange={(e) => setWalkInForm(prev => ({ ...prev, notes: e.target.value }))}
+                  className="input"
+                  rows={3}
+                  placeholder="Any special requirements or notes"
+                />
+              </div>
+              
+              <div className="flex space-x-3">
+                <button
+                  type="button"
+                  onClick={() => setShowWalkInForm(false)}
+                  className="btn btn-secondary flex-1"
+                  disabled={submitting}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="btn btn-primary flex-1"
+                  disabled={submitting}
+                >
+                  {submitting ? 'Adding...' : 'Add Walk-in'}
                 </button>
               </div>
             </form>

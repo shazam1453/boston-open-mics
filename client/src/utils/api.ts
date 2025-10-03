@@ -141,6 +141,17 @@ export const eventsAPI = {
   
   updatePerformerLength: (signupId: string | number, performanceLength: number) =>
     api.put<{ signup: Signup }>(`/signups/${signupId}/performance-length`, { performanceLength }),
+
+  // Host management methods
+  removePerformer: (eventId: string | number, signupId: string | number) =>
+    api.delete<{ message: string; removedSignup: any }>(`/events/${eventId}/performers/${signupId}/remove`),
+  
+  addWalkIn: (eventId: string | number, walkInData: {
+    performerName: string
+    performanceName: string
+    performanceType?: string
+    notes?: string
+  }) => api.post<{ message: string; signup: any }>(`/events/${eventId}/walk-ins`, walkInData),
 }
 
 // Venues API
@@ -250,6 +261,9 @@ export const chatAPI = {
     api.put<{ message: string }>(`/chat/messages/${messageId}/read`),
 
   // Group chat methods
+  createEventGroupChat: (eventId: string | number) =>
+    api.post<{ message: string; conversation: any }>(`/events/${eventId}/chat/create`),
+  
   getEventGroupChat: (eventId: string | number) =>
     api.get<{ conversation: any }>(`/events/${eventId}/chat`),
   
