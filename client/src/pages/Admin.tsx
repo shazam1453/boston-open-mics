@@ -14,6 +14,7 @@ export default function Admin() {
   const [error, setError] = useState<string | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
   const [hasInitiallyLoaded, setHasInitiallyLoaded] = useState(false)
+  const [loadedTabs, setLoadedTabs] = useState<Set<string>>(new Set())
 
   // Simple loading check - no useEffect
   if (loading) {
@@ -23,9 +24,10 @@ export default function Admin() {
   // Auto-load data on first render only (not in useEffect to avoid infinite loops)
   if (!loading && !hasInitiallyLoaded && user && ['admin', 'super_admin', 'moderator'].includes(user.role || '')) {
     setHasInitiallyLoaded(true)
+    setLoadedTabs(prev => new Set([...prev, activeTab]))
     // Trigger initial load after a brief delay to avoid render conflicts
     setTimeout(() => {
-      loadCurrentTabData()
+      loadTabData(activeTab)
     }, 50)
   }
 
@@ -143,8 +145,28 @@ export default function Admin() {
     }
   }
 
-  // Manual data loading functions
-  const loadCurrentTabData = async () => {
+  // Manual refresh function for current tab
+  const loadCurrentTabData = () => {
+    loadTabData(activeTab)
+  }
+
+  // Handle tab change with automatic loading on first visit
+  const handleTabChange = (tab: 'users' | 'events' | 'venues') => {
+    setActiveTab(tab)
+    setSearchQuery('') // Reset search when switching tabs
+    
+    // Auto-load data if this tab hasn't been loaded yet
+    if (!loadedTabs.has(tab) && user && ['admin', 'super_admin', 'moderator'].includes(user.role || '')) {
+      setLoadedTabs(prev => new Set([...prev, tab]))
+      // Small delay to avoid render conflicts
+      setTimeout(() => {
+        loadTabData(tab)
+      }, 50)
+    }
+  }
+
+  // Load data for a specific tab
+  const loadTabData = async (tab: 'users' | 'events' | 'venues') => {
     if (!user || !['admin', 'super_admin', 'moderator'].includes(user.role || '')) {
       return
     }
@@ -153,34 +175,27 @@ export default function Admin() {
     setError(null)
     
     try {
-      if (activeTab === 'users') {
+      if (tab === 'users') {
         const response = await adminAPI.getAllUsers()
         setUsers(response.data || [])
-      } else if (activeTab === 'events') {
+      } else if (tab === 'events') {
         const response = await adminAPI.getAllEvents()
         setEvents(response.data || [])
-      } else if (activeTab === 'venues') {
+      } else if (tab === 'venues') {
         const response = await adminAPI.getAllVenues()
         setVenues(response.data || [])
       }
     } catch (error: any) {
-      console.error(`Error loading ${activeTab}:`, error)
-      setError(error.response?.data?.message || `Failed to load ${activeTab}`)
+      console.error(`Error loading ${tab}:`, error)
+      setError(error.response?.data?.message || `Failed to load ${tab}`)
       
       // Reset the appropriate state
-      if (activeTab === 'users') setUsers([])
-      else if (activeTab === 'events') setEvents([])
-      else if (activeTab === 'venues') setVenues([])
+      if (tab === 'users') setUsers([])
+      else if (tab === 'events') setEvents([])
+      else if (tab === 'venues') setVenues([])
     } finally {
       setLoadingData(false)
     }
-  }
-
-  // Handle tab change with manual loading
-  const handleTabChange = (tab: 'users' | 'events' | 'venues') => {
-    setActiveTab(tab)
-    setSearchQuery('') // Reset search when switching tabs
-    // Don't automatically load - user will click refresh button
   }
 
   // Reset search when switching tabs (handled manually in handleTabChange)
