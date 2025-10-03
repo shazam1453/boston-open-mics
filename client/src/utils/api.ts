@@ -300,7 +300,10 @@ export const chatAPI = {
     api.post<{ message: string; conversation: any }>(`/events/${eventId}/chat/join`),
   
   leaveEventGroupChat: (eventId: string | number) =>
-    api.post<{ message: string }>(`/events/${eventId}/chat/leave`)
+    api.post<{ message: string }>(`/events/${eventId}/chat/leave`),
+
+  deleteEventGroupChat: (eventId: string | number) =>
+    api.delete<{ message: string }>(`/events/${eventId}/chat/delete`)
 }
 
 export default api
