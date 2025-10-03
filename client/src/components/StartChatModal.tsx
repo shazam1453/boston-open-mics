@@ -29,7 +29,15 @@ export default function StartChatModal({ onClose, onStartChat }: StartChatModalP
       setSearchResults(response.data)
     } catch (error: any) {
       console.error('Search failed:', error)
-      setError(error.response?.data?.message || 'Failed to search users')
+      
+      // If we get 401 unauthorized, the token might be invalid
+      if (error.response?.status === 401) {
+        console.log('Got 401 on user search, clearing invalid token')
+        localStorage.removeItem('token')
+        setError('Your session has expired. Please refresh the page to log in again.')
+      } else {
+        setError(error.response?.data?.message || 'Failed to search users')
+      }
       setSearchResults([])
     } finally {
       setSearching(false)
