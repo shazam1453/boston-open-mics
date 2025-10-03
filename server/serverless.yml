@@ -17,6 +17,7 @@ provider:
     CONVERSATIONS_TABLE: ${self:service}-${opt:stage, self:provider.stage}-conversations
     MESSAGES_TABLE: ${self:service}-${opt:stage, self:provider.stage}-messages
     CONVERSATION_PARTICIPANTS_TABLE: ${self:service}-${opt:stage, self:provider.stage}-conversation-participants
+    TOKENS_TABLE: ${self:service}-${opt:stage, self:provider.stage}-tokens
     SES_FROM_EMAIL: ${env:SES_FROM_EMAIL, 'noreply@bostonshowtime.com'}
     SES_REGION: ${opt:region, self:provider.region}
     FROM_EMAIL: ${env:FROM_EMAIL, 'noreply@bostonshowtime.com'}
@@ -48,6 +49,7 @@ provider:
             - "arn:aws:dynamodb:${opt:region, self:provider.region}:*:table/${self:provider.environment.CONVERSATIONS_TABLE}"
             - "arn:aws:dynamodb:${opt:region, self:provider.region}:*:table/${self:provider.environment.MESSAGES_TABLE}"
             - "arn:aws:dynamodb:${opt:region, self:provider.region}:*:table/${self:provider.environment.CONVERSATION_PARTICIPANTS_TABLE}"
+            - "arn:aws:dynamodb:${opt:region, self:provider.region}:*:table/${self:provider.environment.TOKENS_TABLE}"
             - "arn:aws:dynamodb:${opt:region, self:provider.region}:*:table/${self:provider.environment.USERS_TABLE}/index/*"
             - "arn:aws:dynamodb:${opt:region, self:provider.region}:*:table/${self:provider.environment.EVENTS_TABLE}/index/*"
             - "arn:aws:dynamodb:${opt:region, self:provider.region}:*:table/${self:provider.environment.SIGNUPS_TABLE}/index/*"
@@ -298,6 +300,21 @@ resources:
                 KeyType: HASH
             Projection:
               ProjectionType: ALL
+        BillingMode: PAY_PER_REQUEST
+
+    TokensTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: ${self:provider.environment.TOKENS_TABLE}
+        AttributeDefinitions:
+          - AttributeName: token
+            AttributeType: S
+        KeySchema:
+          - AttributeName: token
+            KeyType: HASH
+        TimeToLiveSpecification:
+          AttributeName: ttl
+          Enabled: true
         BillingMode: PAY_PER_REQUEST
 
 # Package configuration

@@ -19,22 +19,104 @@ const CONVERSATIONS_TABLE = process.env.CONVERSATIONS_TABLE;
 const MESSAGES_TABLE = process.env.MESSAGES_TABLE;
 const CONVERSATION_PARTICIPANTS_TABLE = process.env.CONVERSATION_PARTICIPANTS_TABLE;
 
-// Active tokens (in memory - in production, use Redis or DynamoDB)
-const activeTokens = global.activeTokens || {};
-global.activeTokens = activeTokens;
-
-// Token expiration time (1 hour in milliseconds)
+// Token storage
+const TOKENS_TABLE = process.env.TOKENS_TABLE;
 const TOKEN_EXPIRATION_TIME = 60 * 60 * 1000; // 1 hour
 
-// Helper function to clean up expired tokens
-const cleanupExpiredTokens = () => {
-  const now = Date.now();
-  Object.keys(activeTokens).forEach(token => {
-    if (activeTokens[token].expiresAt && activeTokens[token].expiresAt < now) {
-      console.log('Removing expired token for user:', activeTokens[token].user?.email || 'unknown');
-      delete activeTokens[token];
+// In-memory cache for performance (will be lost on cold starts, but that's ok)
+const tokenCache = global.tokenCache || {};
+global.tokenCache = tokenCache;
+
+// Helper function to store token in DynamoDB
+const storeToken = async (token, userData, expiresAt) => {
+  // Always store in memory cache first
+  tokenCache[token] = {
+    user: userData,
+    expiresAt: expiresAt,
+    createdAt: Date.now()
+  };
+  
+  try {
+    const ttl = Math.floor(expiresAt / 1000); // TTL in seconds for DynamoDB
+    
+    await dynamodb.put({
+      TableName: TOKENS_TABLE,
+      Item: {
+        token: token,
+        user: userData,
+        expiresAt: expiresAt,
+        createdAt: Date.now(),
+        ttl: ttl // DynamoDB will automatically delete expired items
+      }
+    }).promise();
+    
+    console.log('Token stored successfully in DynamoDB for user:', userData.email);
+  } catch (error) {
+    console.error('Failed to store token in DynamoDB, using memory only:', error);
+    // Don't throw error - fallback to memory-only storage
+    console.log('Token stored in memory cache for user:', userData.email);
+  }
+};
+
+// Helper function to get token from DynamoDB or cache
+const getToken = async (token) => {
+  // First check memory cache
+  if (tokenCache[token]) {
+    const tokenData = tokenCache[token];
+    if (tokenData.expiresAt > Date.now()) {
+      return tokenData;
+    } else {
+      // Remove expired token from cache
+      delete tokenCache[token];
     }
-  });
+  }
+  
+  // Check DynamoDB
+  try {
+    const result = await dynamodb.get({
+      TableName: TOKENS_TABLE,
+      Key: { token: token }
+    }).promise();
+    
+    if (result.Item) {
+      const tokenData = {
+        user: result.Item.user,
+        expiresAt: result.Item.expiresAt,
+        createdAt: result.Item.createdAt
+      };
+      
+      // Check if token is expired
+      if (tokenData.expiresAt > Date.now()) {
+        // Cache for future requests
+        tokenCache[token] = tokenData;
+        return tokenData;
+      } else {
+        // Token is expired, delete it
+        await deleteToken(token);
+        return null;
+      }
+    }
+  } catch (error) {
+    console.error('Failed to get token from DynamoDB:', error);
+  }
+  
+  return null;
+};
+
+// Helper function to delete token from DynamoDB and cache
+const deleteToken = async (token) => {
+  // Remove from cache
+  delete tokenCache[token];
+  
+  // Remove from DynamoDB
+  try {
+    await dynamodb.delete({
+      TableName: TOKENS_TABLE,
+      Key: { token: token }
+    }).promise();
+  } catch (error) {
+    console.error('Failed to delete token from DynamoDB:', error);
+  }
 };
 
 // Email helper function
@@ -107,30 +189,23 @@ exports.handler = async (event, context) => {
       }
     }
     
-    // Helper function to authenticate
-    const authenticate = () => {
-      // Clean up expired tokens on each authentication attempt
-      cleanupExpiredTokens();
-      
+    // Helper function to authenticate (now async)
+    const authenticate = async () => {
       const authHeader = headers.Authorization || headers.authorization;
       if (!authHeader || !authHeader.startsWith('Bearer ')) {
+        console.log('No auth header or invalid format');
         return null;
       }
       
       const token = authHeader.replace('Bearer ', '');
-      const tokenData = activeTokens[token];
+      const tokenData = await getToken(token);
       
       if (!tokenData) {
+        console.log('Token not found or expired:', token.substring(0, 20) + '...');
         return null;
       }
       
-      // Check if token has expired
-      if (tokenData.expiresAt && tokenData.expiresAt < Date.now()) {
-        console.log('Token expired for user:', tokenData.user?.email || 'unknown');
-        delete activeTokens[token];
-        return null;
-      }
-      
+      console.log('Authentication successful for user:', tokenData.user?.email || 'unknown');
       return tokenData.user;
     };
     
@@ -183,11 +258,13 @@ exports.handler = async (event, context) => {
               'GET /api/events/{id}',
               'POST /api/events',
               'PUT /api/events/{id}',
+              'GET /api/events/host/{hostId}',
               'POST /api/events/{id}/randomize-order'
             ],
             venues: [
               'GET /api/venues',
-              'POST /api/venues'
+              'POST /api/venues',
+              'GET /api/venues/owner/{ownerId}'
             ],
             signups: [
               'GET /api/signups/event/{eventId}',
@@ -283,11 +360,10 @@ exports.handler = async (event, context) => {
       
       const token = `token_${Date.now()}_${Math.random()}`;
       const expiresAt = Date.now() + TOKEN_EXPIRATION_TIME;
-      activeTokens[token] = {
-        user: newUser,
-        expiresAt: expiresAt,
-        createdAt: Date.now()
-      };
+      
+      // Store token in DynamoDB
+      await storeToken(token, newUser, expiresAt);
+      console.log('Created new token for user:', newUser.email, 'expires at:', new Date(expiresAt));
       
       const { password: _, ...userResponse } = newUser;
       
@@ -339,11 +415,10 @@ exports.handler = async (event, context) => {
       
       const token = `token_${Date.now()}_${Math.random()}`;
       const expiresAt = Date.now() + TOKEN_EXPIRATION_TIME;
-      activeTokens[token] = {
-        user: user,
-        expiresAt: expiresAt,
-        createdAt: Date.now()
-      };
+      
+      // Store token in DynamoDB
+      await storeToken(token, user, expiresAt);
+      console.log('Created new token for user:', user.email, 'expires at:', new Date(expiresAt));
       
       const { password: _, ...userResponse } = user;
       
@@ -360,7 +435,7 @@ exports.handler = async (event, context) => {
     }
     
     if (path === '/api/auth/profile' && httpMethod === 'GET') {
-      const user = authenticate();
+      const user = await authenticate();
       if (!user) {
         return {
           statusCode: 401,
@@ -379,7 +454,7 @@ exports.handler = async (event, context) => {
     }
     
     if (path === '/api/auth/me' && httpMethod === 'GET') {
-      const user = authenticate();
+      const user = await authenticate();
       if (!user) {
         return {
           statusCode: 401,
@@ -399,7 +474,7 @@ exports.handler = async (event, context) => {
     
     // Change password endpoint (for logged-in users)
     if (path === '/api/auth/change-password' && httpMethod === 'PUT') {
-      const user = authenticate();
+      const user = await authenticate();
       if (!user) {
         return {
           statusCode: 401,
@@ -469,9 +544,9 @@ exports.handler = async (event, context) => {
         }).promise();
         
         // Invalidate all tokens for this user (force re-login)
-        Object.keys(activeTokens).forEach(token => {
-          if (activeTokens[token].user && activeTokens[token].user.id === user.id) {
-            delete activeTokens[token];
+        Object.keys(tokenCache).forEach(async (token) => {
+          if (tokenCache[token].user && tokenCache[token].user.id === user.id) {
+            await deleteToken(token);
           }
         });
         
@@ -636,9 +711,9 @@ exports.handler = async (event, context) => {
         }).promise();
         
         // Invalidate all tokens for this user
-        Object.keys(activeTokens).forEach(token => {
-          if (activeTokens[token].user && activeTokens[token].user.id === user.id) {
-            delete activeTokens[token];
+        Object.keys(tokenCache).forEach(async (token) => {
+          if (tokenCache[token].user && tokenCache[token].user.id === user.id) {
+            await deleteToken(token);
           }
         });
         
@@ -662,7 +737,7 @@ exports.handler = async (event, context) => {
     
     // Token refresh endpoint
     if (path === '/api/auth/refresh-token' && httpMethod === 'POST') {
-      const user = authenticate();
+      const user = await authenticate();
       if (!user) {
         return {
           statusCode: 401,
@@ -673,14 +748,30 @@ exports.handler = async (event, context) => {
       
       try {
         // Find the current token
-        const currentTokenKey = Object.keys(activeTokens).find(token => 
-          activeTokens[token].user && activeTokens[token].user.id === user.id
+        const currentTokenKey = Object.keys(tokenCache).find(token => 
+          tokenCache[token].user && tokenCache[token].user.id === user.id
         );
         
         if (currentTokenKey) {
           // Extend the current token's expiration
           const newExpiresAt = Date.now() + TOKEN_EXPIRATION_TIME;
-          activeTokens[currentTokenKey].expiresAt = newExpiresAt;
+          tokenCache[currentTokenKey].expiresAt = newExpiresAt;
+          
+          // Update in DynamoDB
+          try {
+            await dynamodb.update({
+              TableName: TOKENS_TABLE,
+              Key: { token: currentTokenKey },
+              UpdateExpression: 'SET expiresAt = :expiresAt, #ttl = :ttl',
+              ExpressionAttributeNames: { '#ttl': 'ttl' },
+              ExpressionAttributeValues: { 
+                ':expiresAt': newExpiresAt,
+                ':ttl': Math.floor(newExpiresAt / 1000)
+              }
+            }).promise();
+          } catch (error) {
+            console.error('Failed to update token expiration in DB:', error);
+          }
           
           return {
             statusCode: 200,
@@ -710,7 +801,7 @@ exports.handler = async (event, context) => {
     
     // Delete own account endpoint
     if (path === '/api/auth/delete-account' && httpMethod === 'DELETE') {
-      const user = authenticate();
+      const user = await authenticate();
       if (!user) {
         return {
           statusCode: 401,
@@ -736,9 +827,9 @@ exports.handler = async (event, context) => {
         }).promise();
         
         // Remove all active tokens for this user
-        Object.keys(activeTokens).forEach(token => {
-          if (activeTokens[token].user && activeTokens[token].user.id === user.id) {
-            delete activeTokens[token];
+        Object.keys(tokenCache).forEach(async (token) => {
+          if (tokenCache[token].user && tokenCache[token].user.id === user.id) {
+            await deleteToken(token);
           }
         });
         
@@ -855,7 +946,7 @@ exports.handler = async (event, context) => {
     }
     
     if (path === '/api/events' && httpMethod === 'POST') {
-      const user = authenticate();
+      const user = await authenticate();
       if (!user) {
         return {
           statusCode: 401,
@@ -925,7 +1016,7 @@ exports.handler = async (event, context) => {
     }
     
     if (path === '/api/venues' && httpMethod === 'POST') {
-      const user = authenticate();
+      const user = await authenticate();
       if (!user) {
         return {
           statusCode: 401,
@@ -957,6 +1048,91 @@ exports.handler = async (event, context) => {
         headers: corsHeaders,
         body: JSON.stringify(newVenue)
       };
+    }
+    
+    // Get venues by owner
+    if (path.match(/^\/api\/venues\/owner\/[^\/]+$/) && httpMethod === 'GET') {
+      const ownerId = path.split('/')[4];
+      
+      try {
+        const result = await dynamodb.scan({
+          TableName: VENUES_TABLE,
+          FilterExpression: 'owner_id = :owner_id',
+          ExpressionAttributeValues: {
+            ':owner_id': ownerId
+          }
+        }).promise();
+        
+        return {
+          statusCode: 200,
+          headers: corsHeaders,
+          body: JSON.stringify(result.Items || [])
+        };
+      } catch (error) {
+        console.error('Error getting venues by owner:', error);
+        return {
+          statusCode: 500,
+          headers: corsHeaders,
+          body: JSON.stringify({ message: 'Failed to get venues' })
+        };
+      }
+    }
+    
+    // Get events by host
+    if (path.match(/^\/api\/events\/host\/[^\/]+$/) && httpMethod === 'GET') {
+      const hostId = path.split('/')[3];
+      
+      try {
+        const result = await dynamodb.scan({
+          TableName: EVENTS_TABLE,
+          FilterExpression: 'host_id = :host_id',
+          ExpressionAttributeValues: {
+            ':host_id': hostId
+          }
+        }).promise();
+        
+        // Enrich events with venue and host info
+        const eventsWithDetails = await Promise.all(result.Items.map(async (event) => {
+          const [venueResult, hostResult, signupsResult] = await Promise.all([
+            dynamodb.get({
+              TableName: VENUES_TABLE,
+              Key: { id: event.venue_id }
+            }).promise(),
+            dynamodb.get({
+              TableName: USERS_TABLE,
+              Key: { id: event.host_id }
+            }).promise(),
+            dynamodb.query({
+              TableName: SIGNUPS_TABLE,
+              IndexName: 'EventIndex',
+              KeyConditionExpression: 'event_id = :event_id',
+              ExpressionAttributeValues: {
+                ':event_id': event.id
+              }
+            }).promise()
+          ]);
+          
+          return {
+            ...event,
+            venue_name: venueResult.Item?.name || 'Unknown Venue',
+            host_name: hostResult.Item?.name || 'Unknown Host',
+            current_signups: signupsResult.Items.length
+          };
+        }));
+        
+        return {
+          statusCode: 200,
+          headers: corsHeaders,
+          body: JSON.stringify(eventsWithDetails)
+        };
+      } catch (error) {
+        console.error('Error getting events by host:', error);
+        return {
+          statusCode: 500,
+          headers: corsHeaders,
+          body: JSON.stringify({ message: 'Failed to get events' })
+        };
+      }
     }
     
     // Signups endpoints
@@ -1003,7 +1179,7 @@ exports.handler = async (event, context) => {
     }
     
     if (path === '/api/signups' && httpMethod === 'POST') {
-      const user = authenticate();
+      const user = await authenticate();
       if (!user) {
         return {
           statusCode: 401,
@@ -1081,7 +1257,7 @@ exports.handler = async (event, context) => {
     }
     
     if (path === '/api/signups/my' && httpMethod === 'GET') {
-      const user = authenticate();
+      const user = await authenticate();
       if (!user) {
         return {
           statusCode: 401,
@@ -1107,7 +1283,7 @@ exports.handler = async (event, context) => {
     }
     
     if (path === '/api/signups/my-signups' && httpMethod === 'GET') {
-      const user = authenticate();
+      const user = await authenticate();
       if (!user) {
         return {
           statusCode: 401,
@@ -1134,7 +1310,7 @@ exports.handler = async (event, context) => {
     
     // User search endpoint
     if (path === '/api/users/search' && httpMethod === 'GET') {
-      const user = authenticate();
+      const user = await authenticate();
       if (!user) {
         return {
           statusCode: 401,
@@ -1209,7 +1385,7 @@ exports.handler = async (event, context) => {
     
     // Reorder signups endpoint
     if (path.match(/^\/api\/signups\/reorder\/[^\/]+$/) && httpMethod === 'PUT') {
-      const user = authenticate();
+      const user = await authenticate();
       if (!user) {
         return {
           statusCode: 401,
@@ -1245,7 +1421,7 @@ exports.handler = async (event, context) => {
     
     // Alternative reorder endpoint for events
     if (path.match(/^\/api\/signups\/event\/[^\/]+\/order$/) && httpMethod === 'PUT') {
-      const user = authenticate();
+      const user = await authenticate();
       if (!user) {
         return {
           statusCode: 401,
@@ -1291,7 +1467,7 @@ exports.handler = async (event, context) => {
     
     // Profile update endpoint
     if (path === '/api/auth/profile' && httpMethod === 'PUT') {
-      const user = authenticate();
+      const user = await authenticate();
       if (!user) {
         return {
           statusCode: 401,
@@ -1351,11 +1527,23 @@ exports.handler = async (event, context) => {
       const { password: _, ...userResponse } = updatedUserResult.Item;
       
       // Update token with new user data while preserving expiration
-      const userTokenKey = Object.keys(activeTokens).find(token => 
-        activeTokens[token].user && activeTokens[token].user.id === user.id
+      const userTokenKey = Object.keys(tokenCache).find(token => 
+        tokenCache[token].user && tokenCache[token].user.id === user.id
       );
-      if (userTokenKey && activeTokens[userTokenKey]) {
-        activeTokens[userTokenKey].user = updatedUserResult.Item;
+      if (userTokenKey && tokenCache[userTokenKey]) {
+        tokenCache[userTokenKey].user = updatedUserResult.Item;
+        // Also update in DynamoDB
+        try {
+          await dynamodb.update({
+            TableName: TOKENS_TABLE,
+            Key: { token: userTokenKey },
+            UpdateExpression: 'SET #user = :user',
+            ExpressionAttributeNames: { '#user': 'user' },
+            ExpressionAttributeValues: { ':user': updatedUserResult.Item }
+          }).promise();
+        } catch (error) {
+          console.error('Failed to update token in DB:', error);
+        }
       }
       
       return {
@@ -1367,7 +1555,7 @@ exports.handler = async (event, context) => {
     
     // Event update endpoint
     if (path.match(/^\/api\/events\/[^\/]+$/) && httpMethod === 'PUT') {
-      const user = authenticate();
+      const user = await authenticate();
       if (!user) {
         return {
           statusCode: 401,
@@ -1457,7 +1645,7 @@ exports.handler = async (event, context) => {
     
     // Admin endpoints
     if (path === '/api/admin/users' && httpMethod === 'GET') {
-      const user = authenticate();
+      const user = await authenticate();
       if (!user || !['admin', 'super_admin', 'moderator'].includes(user.role)) {
         return {
           statusCode: 403,
@@ -1483,7 +1671,7 @@ exports.handler = async (event, context) => {
     }
     
     if (path.match(/^\/api\/admin\/users\/[^\/]+$/) && httpMethod === 'DELETE') {
-      const user = authenticate();
+      const user = await authenticate();
       if (!user || !['admin', 'super_admin'].includes(user.role)) {
         return {
           statusCode: 403,
@@ -1507,7 +1695,7 @@ exports.handler = async (event, context) => {
     }
     
     if (path.match(/^\/api\/admin\/users\/[^\/]+\/role$/) && httpMethod === 'PUT') {
-      const user = authenticate();
+      const user = await authenticate();
       if (!user || user.role !== 'super_admin') {
         return {
           statusCode: 403,
@@ -1556,7 +1744,7 @@ exports.handler = async (event, context) => {
     }
     
     if (path === '/api/admin/events' && httpMethod === 'GET') {
-      const user = authenticate();
+      const user = await authenticate();
       if (!user || !['admin', 'super_admin', 'moderator'].includes(user.role)) {
         return {
           statusCode: 403,
@@ -1577,7 +1765,7 @@ exports.handler = async (event, context) => {
     }
     
     if (path.match(/^\/api\/admin\/events\/[^\/]+$/) && httpMethod === 'DELETE') {
-      const user = authenticate();
+      const user = await authenticate();
       if (!user || !['admin', 'super_admin'].includes(user.role)) {
         return {
           statusCode: 403,
@@ -1601,7 +1789,7 @@ exports.handler = async (event, context) => {
     }
     
     if (path === '/api/admin/venues' && httpMethod === 'GET') {
-      const user = authenticate();
+      const user = await authenticate();
       if (!user || !['admin', 'super_admin', 'moderator'].includes(user.role)) {
         return {
           statusCode: 403,
@@ -1622,7 +1810,7 @@ exports.handler = async (event, context) => {
     }
     
     if (path.match(/^\/api\/admin\/venues\/[^\/]+$/) && httpMethod === 'DELETE') {
-      const user = authenticate();
+      const user = await authenticate();
       if (!user || !['admin', 'super_admin'].includes(user.role)) {
         return {
           statusCode: 403,
@@ -1647,7 +1835,7 @@ exports.handler = async (event, context) => {
     
     // Signup management endpoints
     if (path.match(/^\/api\/signups\/[^\/]+\/finish$/) && httpMethod === 'PUT') {
-      const user = authenticate();
+      const user = await authenticate();
       if (!user) {
         return {
           statusCode: 401,
@@ -1682,7 +1870,7 @@ exports.handler = async (event, context) => {
     }
     
     if (path.match(/^\/api\/signups\/[^\/]+\/unfinish$/) && httpMethod === 'PUT') {
-      const user = authenticate();
+      const user = await authenticate();
       if (!user) {
         return {
           statusCode: 401,
@@ -1718,7 +1906,7 @@ exports.handler = async (event, context) => {
     
     // Event randomize order endpoint
     if (path.match(/^\/api\/events\/[^\/]+\/randomize-order$/) && httpMethod === 'POST') {
-      const user = authenticate();
+      const user = await authenticate();
       if (!user) {
         return {
           statusCode: 401,
@@ -1780,7 +1968,7 @@ exports.handler = async (event, context) => {
     
     // Test email endpoint (for development/testing)
     if (path === '/api/test-email' && httpMethod === 'POST') {
-      const user = authenticate();
+      const user = await authenticate();
       if (!user) {
         return {
           statusCode: 401,
@@ -1827,7 +2015,7 @@ exports.handler = async (event, context) => {
 
     // Invitation endpoint
     if (path === '/api/invitations/send' && httpMethod === 'POST') {
-      const user = authenticate();
+      const user = await authenticate();
       if (!user) {
         return {
           statusCode: 401,
@@ -1986,7 +2174,7 @@ Questions? Contact ${inviterName} at ${inviterEmail}
     
     // Get user's conversations (both direct and group chats)
     if (path === '/api/chat/conversations' && httpMethod === 'GET') {
-      const user = authenticate();
+      const user = await authenticate();
       if (!user) {
         return {
           statusCode: 401,
@@ -2161,7 +2349,7 @@ Questions? Contact ${inviterName} at ${inviterEmail}
 
     // Start a new conversation
     if (path === '/api/chat/conversations' && httpMethod === 'POST') {
-      const user = authenticate();
+      const user = await authenticate();
       if (!user) {
         return {
           statusCode: 401,
@@ -2263,7 +2451,7 @@ Questions? Contact ${inviterName} at ${inviterEmail}
 
     // Get messages for a conversation
     if (path.match(/^\/api\/chat\/conversations\/[^\/]+\/messages$/) && httpMethod === 'GET') {
-      const user = authenticate();
+      const user = await authenticate();
       if (!user) {
         return {
           statusCode: 401,
@@ -2350,7 +2538,7 @@ Questions? Contact ${inviterName} at ${inviterEmail}
 
     // Send a message
     if (path.match(/^\/api\/chat\/conversations\/[^\/]+\/messages$/) && httpMethod === 'POST') {
-      const user = authenticate();
+      const user = await authenticate();
       if (!user) {
         return {
           statusCode: 401,
@@ -2452,7 +2640,7 @@ Questions? Contact ${inviterName} at ${inviterEmail}
 
     // Mark message as read
     if (path.match(/^\/api\/chat\/messages\/[^\/]+\/read$/) && httpMethod === 'PUT') {
-      const user = authenticate();
+      const user = await authenticate();
       if (!user) {
         return {
           statusCode: 401,
@@ -2516,7 +2704,7 @@ Questions? Contact ${inviterName} at ${inviterEmail}
 
     // Remove performer from event (host only)
     if (path.match(/^\/api\/events\/[^\/]+\/performers\/[^\/]+\/remove$/) && httpMethod === 'DELETE') {
-      const user = authenticate();
+      const user = await authenticate();
       if (!user) {
         return {
           statusCode: 401,
@@ -2601,7 +2789,7 @@ Questions? Contact ${inviterName} at ${inviterEmail}
 
     // Add walk-in performer (host only)
     if (path.match(/^\/api\/events\/[^\/]+\/walk-ins$/) && httpMethod === 'POST') {
-      const user = authenticate();
+      const user = await authenticate();
       if (!user) {
         return {
           statusCode: 401,
@@ -2702,7 +2890,7 @@ Questions? Contact ${inviterName} at ${inviterEmail}
 
     // Create event group chat (host only)
     if (path.match(/^\/api\/events\/[^\/]+\/chat\/create$/) && httpMethod === 'POST') {
-      const user = authenticate();
+      const user = await authenticate();
       if (!user) {
         return {
           statusCode: 401,
@@ -2808,7 +2996,7 @@ Questions? Contact ${inviterName} at ${inviterEmail}
 
     // Get event group chat
     if (path.match(/^\/api\/events\/[^\/]+\/chat$/) && httpMethod === 'GET') {
-      const user = authenticate();
+      const user = await authenticate();
       if (!user) {
         return {
           statusCode: 401,
@@ -2910,7 +3098,7 @@ Questions? Contact ${inviterName} at ${inviterEmail}
 
     // Join event group chat
     if (path.match(/^\/api\/events\/[^\/]+\/chat\/join$/) && httpMethod === 'POST') {
-      const user = authenticate();
+      const user = await authenticate();
       if (!user) {
         return {
           statusCode: 401,
@@ -3052,7 +3240,7 @@ Questions? Contact ${inviterName} at ${inviterEmail}
 
     // Leave event group chat
     if (path.match(/^\/api\/events\/[^\/]+\/chat\/leave$/) && httpMethod === 'POST') {
-      const user = authenticate();
+      const user = await authenticate();
       if (!user) {
         return {
           statusCode: 401,
