@@ -1106,13 +1106,13 @@ export default function EventDetail() {
                             {/* Performance Length Control */}
                             {isHost && event.event_status === 'scheduled' ? (
                               <div className="flex items-center space-x-2">
-                                <label className="text-sm text-gray-600">Length:</label>
+                                <label className="text-sm text-gray-600 hidden sm:block">Length:</label>
                                 <input
                                   type="text"
                                   placeholder="e.g. 5 min, 2 songs"
                                   value={signup.individual_performance_length || `${event.performance_length} min`}
                                   onChange={(e) => handleUpdatePerformerLength(signup.id, e.target.value)}
-                                  className="w-24 px-2 py-1 text-sm border border-gray-300 rounded"
+                                  className="w-28 sm:w-32 px-2 py-1 text-sm border border-gray-300 rounded focus:ring-2 focus:ring-purple-500 focus:border-transparent"
                                 />
                               </div>
                             ) : (
@@ -1535,20 +1535,18 @@ export default function EventDetail() {
                             {/* Performance Length Control */}
                             {isHost && event.event_status === 'scheduled' ? (
                               <div className="flex items-center space-x-2">
-                                <label className="text-sm text-gray-600">Length:</label>
+                                <label className="text-sm text-gray-600 hidden sm:block">Length:</label>
                                 <input
-                                  type="number"
-                                  min="1"
-                                  max="30"
-                                  value={signup.individual_performance_length || event.performance_length || 5}
-                                  onChange={(e) => handleUpdatePerformerLength(signup.id, parseInt(e.target.value))}
-                                  className="w-16 px-2 py-1 text-sm border border-gray-300 rounded"
+                                  type="text"
+                                  placeholder="e.g. 5 min, 2 songs"
+                                  value={signup.individual_performance_length || `${event.performance_length || 5} min`}
+                                  onChange={(e) => handleUpdatePerformerLength(signup.id, e.target.value)}
+                                  className="w-28 sm:w-32 px-2 py-1 text-sm border border-gray-300 rounded focus:ring-2 focus:ring-purple-500 focus:border-transparent"
                                 />
-                                <span className="text-sm text-gray-500">min</span>
                               </div>
                             ) : event.event_status === 'live' || event.event_status === 'finished' ? (
                               <div className="text-sm text-gray-500">
-                                {signup.individual_performance_length || event.performance_length || 5} min
+                                {signup.individual_performance_length || `${event.performance_length || 5} min`}
                               </div>
                             ) : null}
 

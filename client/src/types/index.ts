@@ -74,7 +74,7 @@ export interface Signup {
   performance_type: 'music' | 'comedy' | 'poetry' | 'storytelling' | 'other'
   status: 'confirmed' | 'waitlist' | 'cancelled' | 'performing' | 'performed'
   performance_order?: number
-  individual_performance_length?: number
+  individual_performance_length?: string | number
   is_finished: boolean
   finished_at?: string
   is_current_performer: boolean
