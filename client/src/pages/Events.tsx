@@ -473,6 +473,9 @@ export default function Events() {
                     {event.signup_list_mode === 'bucket' && (
                       <span className="text-orange-600 font-medium">Bucket Style</span>
                     )}
+                    {event.signup_list_mode === 'booked_mic' && (
+                      <span className="text-purple-600 font-medium">Booked Mic (Invite-Only)</span>
+                    )}
                   </div>
                   {signupOpens && signupOpens > now && (
                     <div className="text-yellow-600">
@@ -487,7 +490,7 @@ export default function Events() {
                 </div>
                 
                 <div className="space-y-2">
-                  {user && signupStatus.status === 'open' && (
+                  {user && signupStatus.status === 'open' && event.signup_list_mode !== 'booked_mic' && (
                     <button
                       onClick={() => {
                         setSignupForm({
@@ -504,11 +507,25 @@ export default function Events() {
                     </button>
                   )}
                   
-                  {!user && signupStatus.status === 'open' && (
+                  {user && signupStatus.status === 'open' && event.signup_list_mode === 'booked_mic' && (
+                    <div className="text-center text-sm text-purple-600 mb-2">
+                      <span className="font-medium">Invite-Only Event</span>
+                      <div className="text-xs text-purple-500">Performers are invited by the host</div>
+                    </div>
+                  )}
+                  
+                  {!user && signupStatus.status === 'open' && event.signup_list_mode !== 'booked_mic' && (
                     <div className="text-center text-sm text-gray-600 mb-2">
                       <Link to="/login" className="text-primary-600 hover:text-primary-700 underline">
                         Login to sign up
                       </Link>
+                    </div>
+                  )}
+                  
+                  {!user && signupStatus.status === 'open' && event.signup_list_mode === 'booked_mic' && (
+                    <div className="text-center text-sm text-purple-600 mb-2">
+                      <span className="font-medium">Invite-Only Event</span>
+                      <div className="text-xs text-purple-500">Performers are invited by the host</div>
                     </div>
                   )}
                   
