@@ -1,21 +1,22 @@
 import { useState, useEffect } from 'react'
 import { Navigate } from 'react-router-dom'
 import { useAuth } from '../hooks/useAuth'
-import { authAPI, venuesAPI, eventsAPI, signupsAPI, usersAPI, recurringEventsAPI } from '../utils/api'
+import { authAPI, venuesAPI, eventsAPI, signupsAPI, usersAPI, recurringEventsAPI, invitationsAPI, chatAPI } from '../utils/api'
 import api from '../utils/api'
 import { formatTime12Hour, formatDate } from '../utils/dateTime'
 import TimePicker from '../components/TimePicker'
 import ChangePassword from '../components/ChangePassword'
 import { EVENT_TYPES, SIGNUP_LIST_MODES, PERFORMER_TYPES, DAYS_OF_WEEK } from '../constants/formOptions'
-import type { Venue, Event, Signup, User } from '../types'
+import type { Venue, Event, Signup, User, Invite } from '../types'
 
 export default function Profile() {
   const { user, loading } = useAuth()
-  const [activeTab, setActiveTab] = useState<'profile' | 'venues' | 'events' | 'signups'>('profile')
+  const [activeTab, setActiveTab] = useState<'profile' | 'venues' | 'events' | 'signups' | 'invitations'>('profile')
   const [signupsTab, setSignupsTab] = useState<'upcoming' | 'past'>('upcoming')
   const [venues, setVenues] = useState<Venue[]>([])
   const [events, setEvents] = useState<Event[]>([])
   const [signups, setSignups] = useState<Signup[]>([])
+  const [invitations, setInvitations] = useState<Invite[]>([])
   const [showVenueForm, setShowVenueForm] = useState(false)
   const [showEventForm, setShowEventForm] = useState(false)
   const [showRecurringForm, setShowRecurringForm] = useState(false)
@@ -196,7 +197,8 @@ export default function Profile() {
     eventType: 'open-mic',
     signupListMode: 'signup_order',
     signupOpens: '',
-    signupDeadline: ''
+    signupDeadline: '',
+    createGroupChat: false
   })
 
   const [recurringForm, setRecurringForm] = useState({
@@ -213,7 +215,8 @@ export default function Profile() {
     signupOpens: '', // Time only, will be combined with event date
     signupDeadline: '', // Time only, will be combined with event date
     signupOpensHoursBefore: '168', // 1 week (fallback)
-    signupDeadlineHoursBefore: '2' // 2 hours (fallback)
+    signupDeadlineHoursBefore: '2', // 2 hours (fallback)
+    createGroupChat: false
   })
 
   useEffect(() => {
@@ -240,21 +243,24 @@ export default function Profile() {
     console.log('Loading user data for user:', user.id, user.email)
 
     try {
-      const [venuesRes, eventsRes, signupsRes] = await Promise.all([
+      const [venuesRes, eventsRes, signupsRes, invitationsRes] = await Promise.all([
         venuesAPI.getByOwner(user.id),
         eventsAPI.getByHost(user.id),
-        signupsAPI.getMySignups()
+        signupsAPI.getMySignups(),
+        invitationsAPI.getMyInvitations()
       ])
       
       console.log('Loaded data:', {
         venues: venuesRes.data.length,
         events: eventsRes.data.length,
-        signups: signupsRes.data.length
+        signups: signupsRes.data.length,
+        invitations: invitationsRes.data.length
       })
       
       setVenues(venuesRes.data)
       setEvents(eventsRes.data)
       setSignups(signupsRes.data)
+      setInvitations(invitationsRes.data)
     } catch (error) {
       console.error('Error loading user data:', error)
     }
@@ -389,6 +395,17 @@ export default function Profile() {
         }
       }
       
+      // Create group chat if requested
+      if (eventForm.createGroupChat) {
+        try {
+          await chatAPI.createEventGroupChat(createdEvent.id)
+          console.log('Group chat created for event:', createdEvent.id)
+        } catch (error) {
+          console.error('Error creating group chat:', error)
+          // Don't fail the entire event creation if group chat fails
+        }
+      }
+      
       // Add the new event to the state immediately
       setEvents(prev => [...prev, createdEvent])
       
@@ -405,7 +422,8 @@ export default function Profile() {
         eventType: 'open-mic',
         signupListMode: 'signup_order',
         signupOpens: '', // Time only, will be combined with event date
-        signupDeadline: '' // Time only, will be combined with event date
+        signupDeadline: '', // Time only, will be combined with event date
+        createGroupChat: false
       })
       setSelectedCohosts([])
       setSelectedPerformers([])
@@ -451,6 +469,19 @@ export default function Profile() {
       // Generate initial events
       const eventsResponse = await recurringEventsAPI.generateEvents(response.data.template.id, 4)
       
+      // Create group chats for generated events if requested
+      if (recurringForm.createGroupChat) {
+        for (const event of eventsResponse.data.events) {
+          try {
+            await chatAPI.createEventGroupChat(event.id)
+            console.log('Group chat created for event:', event.id)
+          } catch (error) {
+            console.error('Error creating group chat for event:', event.id, error)
+            // Continue with other events even if one fails
+          }
+        }
+      }
+      
       // Add the new events to the state immediately
       setEvents(prev => [...prev, ...eventsResponse.data.events])
       
@@ -469,7 +500,8 @@ export default function Profile() {
         signupOpens: '', // Time only
         signupDeadline: '', // Time only
         signupOpensHoursBefore: '168', // 1 week
-        signupDeadlineHoursBefore: '2'
+        signupDeadlineHoursBefore: '2',
+        createGroupChat: false
       })
       
       // Also reload data to ensure consistency
@@ -500,7 +532,8 @@ export default function Profile() {
         eventType: event.event_type,
         signupListMode: event.signup_list_mode || 'signup_order',
         signupOpens: event.signup_opens ? new Date(event.signup_opens).toTimeString().slice(0, 5) : '',
-        signupDeadline: event.signup_deadline ? new Date(event.signup_deadline).toTimeString().slice(0, 5) : ''
+        signupDeadline: event.signup_deadline ? new Date(event.signup_deadline).toTimeString().slice(0, 5) : '',
+        createGroupChat: false // Default to false for existing events
       }
       
       console.log('Form data:', formData)
@@ -568,6 +601,22 @@ export default function Profile() {
         signup_opens: signupOpens,
         signup_deadline: signupDeadline
       })
+      
+      // Handle group chat creation/management
+      if (eventForm.createGroupChat) {
+        try {
+          // Check if group chat already exists
+          const existingChat = await chatAPI.getEventGroupChat(editingEvent.id)
+          if (!existingChat.data.conversation) {
+            // Create group chat if it doesn't exist
+            await chatAPI.createEventGroupChat(editingEvent.id)
+            console.log('Group chat created for event:', editingEvent.id)
+          }
+        } catch (error) {
+          console.error('Error managing group chat:', error)
+          // Don't fail the entire update if group chat fails
+        }
+      }
       
       // Update the event in the state
       setEvents(prev => prev.map(event => 
@@ -674,6 +723,22 @@ export default function Profile() {
     }
   }
 
+  const handleInvitationResponse = async (invitationId: string | number, response: 'accepted' | 'declined') => {
+    try {
+      await invitationsAPI.respond(invitationId, response)
+      
+      // Update the invitation status in the state
+      setInvitations(prev => prev.map(inv => 
+        inv.id === invitationId ? { ...inv, status: response } : inv
+      ))
+      
+      console.log(`Invitation ${invitationId} ${response}`)
+    } catch (error: any) {
+      console.error('Error responding to invitation:', error)
+      setError(error.response?.data?.message || 'Failed to respond to invitation')
+    }
+  }
+
   if (loading) {
     return <div className="text-center">Loading...</div>
   }
@@ -708,7 +773,8 @@ export default function Profile() {
             { key: 'profile', label: 'Profile', mobileLabel: '👤' },
             { key: 'venues', label: `My Venues (${venues.length})`, mobileLabel: `🏢 (${venues.length})` },
             { key: 'events', label: `My Events (${events.length})`, mobileLabel: `📅 (${events.length})` },
-            { key: 'signups', label: `My Signups (${signups.length})`, mobileLabel: `🎤 (${signups.length})` }
+            { key: 'signups', label: `My Signups (${signups.length})`, mobileLabel: `🎤 (${signups.length})` },
+            { key: 'invitations', label: `Invitations (${invitations.length})`, mobileLabel: `📨 (${invitations.length})` }
           ].map(tab => (
             <button
               key={tab.key}
@@ -1663,6 +1729,24 @@ export default function Profile() {
                     />
                   </div>
                   
+                  {/* Group Chat Option */}
+                  <div>
+                    <label className="flex items-center space-x-2">
+                      <input
+                        type="checkbox"
+                        checked={recurringForm.createGroupChat || false}
+                        onChange={(e) => setRecurringForm(prev => ({ ...prev, createGroupChat: e.target.checked }))}
+                        className="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                      />
+                      <span className="text-sm font-medium text-gray-700">
+                        Create group chat for each event
+                      </span>
+                    </label>
+                    <p className="text-xs text-gray-500 mt-1 ml-6">
+                      Automatically create group chats for all generated events
+                    </p>
+                  </div>
+                  
                   <div className="flex space-x-3 pt-4">
                     <button 
                       type="submit" 
@@ -2149,6 +2233,24 @@ export default function Profile() {
                     </div>
                   )}
                   
+                  {/* Group Chat Option */}
+                  <div>
+                    <label className="flex items-center space-x-2">
+                      <input
+                        type="checkbox"
+                        checked={eventForm.createGroupChat || false}
+                        onChange={(e) => setEventForm(prev => ({ ...prev, createGroupChat: e.target.checked }))}
+                        className="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                      />
+                      <span className="text-sm font-medium text-gray-700">
+                        Create group chat for this event
+                      </span>
+                    </label>
+                    <p className="text-xs text-gray-500 mt-1 ml-6">
+                      Allow performers and co-hosts to chat about this event
+                    </p>
+                  </div>
+                  
                   <div className="flex space-x-3 pt-4">
                     <button 
                       type="submit" 
@@ -2265,6 +2367,65 @@ export default function Profile() {
               </div>
             )
           })()}
+        </div>
+      )}
+
+      {/* Invitations Tab */}
+      {activeTab === 'invitations' && (
+        <div>
+          <h2 className="text-xl font-semibold mb-6">My Invitations</h2>
+          
+          {invitations.length === 0 ? (
+            <div className="card text-center py-12">
+              <p className="text-gray-600">You have no pending invitations.</p>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {invitations.map(invitation => (
+                <div key={invitation.id} className="card">
+                  <div className="flex items-center justify-between">
+                    <div className="flex-1">
+                      <h3 className="font-semibold">
+                        {invitation.type === 'cohost' ? 'Co-host Invitation' : 'Performance Invitation'}
+                      </h3>
+                      <p className="text-gray-600 text-sm">
+                        Event: {invitation.event_title || 'Unknown Event'}
+                      </p>
+                      <p className="text-gray-500 text-xs">
+                        From: {invitation.inviter_name || 'Unknown Host'}
+                      </p>
+                      <p className="text-gray-500 text-xs">
+                        Status: <span className={`font-medium ${
+                          invitation.status === 'pending' ? 'text-yellow-600' :
+                          invitation.status === 'accepted' ? 'text-green-600' :
+                          'text-red-600'
+                        }`}>
+                          {invitation.status.charAt(0).toUpperCase() + invitation.status.slice(1)}
+                        </span>
+                      </p>
+                    </div>
+                    
+                    {invitation.status === 'pending' && (
+                      <div className="flex space-x-2">
+                        <button
+                          onClick={() => handleInvitationResponse(invitation.id, 'accepted')}
+                          className="btn btn-primary text-sm"
+                        >
+                          Accept
+                        </button>
+                        <button
+                          onClick={() => handleInvitationResponse(invitation.id, 'declined')}
+                          className="btn btn-secondary text-sm"
+                        >
+                          Decline
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
 
@@ -2674,6 +2835,29 @@ export default function Profile() {
                       <div className="animate-spin h-4 w-4 border-2 border-primary-500 border-t-transparent rounded-full"></div>
                     </div>
                   )}
+                </div>
+              </div>
+              
+              {/* Group Chat Management */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Group Chat
+                </label>
+                <div className="space-y-2">
+                  <label className="flex items-center space-x-2">
+                    <input
+                      type="checkbox"
+                      checked={eventForm.createGroupChat || false}
+                      onChange={(e) => setEventForm(prev => ({ ...prev, createGroupChat: e.target.checked }))}
+                      className="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                    />
+                    <span className="text-sm text-gray-700">
+                      Create/manage group chat for this event
+                    </span>
+                  </label>
+                  <p className="text-xs text-gray-500 ml-6">
+                    Allow performers and co-hosts to chat about this event
+                  </p>
                 </div>
               </div>
               

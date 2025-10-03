@@ -114,17 +114,24 @@ export interface RecurringEventTemplate {
 }
 
 export interface Invite {
-  id: number
-  event_id: number
-  user_id: number
-  user_name: string
-  user_email: string
+  id: string | number
+  event_id: string | number
+  inviter_id: string | number
+  invitee_id: string | number
+  type: 'cohost' | 'performer'
+  message?: string
   status: 'pending' | 'accepted' | 'declined'
-  invited_by: number
-  invited_at: string
+  created_at: string
+  updated_at: string
   responded_at?: string
-  performance_name?: string
-  notes?: string
+  // Extended fields from joins (may not always be present)
+  event_title?: string
+  event_date?: string
+  venue_name?: string
+  inviter_name?: string
+  inviter_email?: string
+  invitee_name?: string
+  invitee_email?: string
 }
 
 export interface ApiError {

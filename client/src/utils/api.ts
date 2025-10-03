@@ -247,6 +247,27 @@ export const recurringEventsAPI = {
   deactivate: (id: number) => api.delete(`/recurring-events/${id}`),
 }
 
+// Invitations API
+export const invitationsAPI = {
+  getMyInvitations: () => api.get<any[]>('/invitations/my-invitations'),
+  
+  getEventInvitations: (eventId: string | number) => 
+    api.get<any[]>(`/invitations/event/${eventId}`),
+  
+  create: (invitationData: {
+    eventId: string | number
+    inviteeId: string | number
+    type: 'cohost' | 'performer'
+    message?: string
+  }) => api.post<any>('/invitations', invitationData),
+  
+  respond: (invitationId: string | number, status: 'accepted' | 'declined') =>
+    api.patch<any>(`/invitations/${invitationId}/respond`, { status }),
+  
+  delete: (invitationId: string | number) => 
+    api.delete(`/invitations/${invitationId}`)
+}
+
 // Chat API
 export const chatAPI = {
   getConversations: () => api.get<any[]>('/chat/conversations'),
