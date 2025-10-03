@@ -704,6 +704,16 @@ export default function EventDetail() {
               </>
             )}
             
+            {/* Debug Info - Remove after testing */}
+            {user && event && (
+              <div className="mb-4 p-2 bg-yellow-50 border border-yellow-200 text-xs">
+                <p>Debug: user.id={user.id} (type: {typeof user.id})</p>
+                <p>Debug: event.host_id={event.host_id} (type: {typeof event.host_id})</p>
+                <p>Debug: event.event_status={event.event_status}</p>
+                <p>Debug: isHost={String(isHost)}</p>
+              </div>
+            )}
+            
             {/* Host Controls */}
             {isHost && (
               <>
