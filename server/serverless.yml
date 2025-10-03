@@ -17,6 +17,7 @@ provider:
     CONVERSATIONS_TABLE: ${self:service}-${opt:stage, self:provider.stage}-conversations
     MESSAGES_TABLE: ${self:service}-${opt:stage, self:provider.stage}-messages
     CONVERSATION_PARTICIPANTS_TABLE: ${self:service}-${opt:stage, self:provider.stage}-conversation-participants
+    INVITATIONS_TABLE: ${self:service}-${opt:stage, self:provider.stage}-invitations
     TOKENS_TABLE: ${self:service}-${opt:stage, self:provider.stage}-tokens
     SES_FROM_EMAIL: ${env:SES_FROM_EMAIL, 'noreply@bostonshowtime.com'}
     SES_REGION: ${opt:region, self:provider.region}
@@ -49,6 +50,7 @@ provider:
             - "arn:aws:dynamodb:${opt:region, self:provider.region}:*:table/${self:provider.environment.CONVERSATIONS_TABLE}"
             - "arn:aws:dynamodb:${opt:region, self:provider.region}:*:table/${self:provider.environment.MESSAGES_TABLE}"
             - "arn:aws:dynamodb:${opt:region, self:provider.region}:*:table/${self:provider.environment.CONVERSATION_PARTICIPANTS_TABLE}"
+            - "arn:aws:dynamodb:${opt:region, self:provider.region}:*:table/${self:provider.environment.INVITATIONS_TABLE}"
             - "arn:aws:dynamodb:${opt:region, self:provider.region}:*:table/${self:provider.environment.TOKENS_TABLE}"
             - "arn:aws:dynamodb:${opt:region, self:provider.region}:*:table/${self:provider.environment.USERS_TABLE}/index/*"
             - "arn:aws:dynamodb:${opt:region, self:provider.region}:*:table/${self:provider.environment.EVENTS_TABLE}/index/*"
@@ -56,6 +58,7 @@ provider:
             - "arn:aws:dynamodb:${opt:region, self:provider.region}:*:table/${self:provider.environment.CONVERSATIONS_TABLE}/index/*"
             - "arn:aws:dynamodb:${opt:region, self:provider.region}:*:table/${self:provider.environment.MESSAGES_TABLE}/index/*"
             - "arn:aws:dynamodb:${opt:region, self:provider.region}:*:table/${self:provider.environment.CONVERSATION_PARTICIPANTS_TABLE}/index/*"
+            - "arn:aws:dynamodb:${opt:region, self:provider.region}:*:table/${self:provider.environment.INVITATIONS_TABLE}/index/*"
         - Effect: Allow
           Action:
             - ses:SendEmail
@@ -297,6 +300,35 @@ resources:
           - IndexName: UserIndex
             KeySchema:
               - AttributeName: user_id
+                KeyType: HASH
+            Projection:
+              ProjectionType: ALL
+        BillingMode: PAY_PER_REQUEST
+
+    InvitationsTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: ${self:provider.environment.INVITATIONS_TABLE}
+        AttributeDefinitions:
+          - AttributeName: id
+            AttributeType: S
+          - AttributeName: event_id
+            AttributeType: S
+          - AttributeName: invitee_id
+            AttributeType: S
+        KeySchema:
+          - AttributeName: id
+            KeyType: HASH
+        GlobalSecondaryIndexes:
+          - IndexName: EventIndex
+            KeySchema:
+              - AttributeName: event_id
+                KeyType: HASH
+            Projection:
+              ProjectionType: ALL
+          - IndexName: InviteeIndex
+            KeySchema:
+              - AttributeName: invitee_id
                 KeyType: HASH
             Projection:
               ProjectionType: ALL

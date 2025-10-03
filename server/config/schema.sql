@@ -108,6 +108,21 @@ CREATE TABLE IF NOT EXISTS event_cohosts (
     UNIQUE(event_id, user_id)
 );
 
+-- Invitations table
+CREATE TABLE IF NOT EXISTS invitations (
+    id SERIAL PRIMARY KEY,
+    event_id INTEGER REFERENCES events(id) ON DELETE CASCADE,
+    inviter_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+    invitee_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+    type VARCHAR(20) NOT NULL CHECK (type IN ('cohost', 'performer')),
+    message TEXT,
+    status VARCHAR(20) DEFAULT 'pending' CHECK (status IN ('pending', 'accepted', 'declined')),
+    responded_at TIMESTAMP,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(event_id, invitee_id, type)
+);
+
 -- Indexes for better performance
 CREATE INDEX IF NOT EXISTS idx_events_date ON events(date);
 CREATE INDEX IF NOT EXISTS idx_events_venue ON events(venue_id);
@@ -115,6 +130,8 @@ CREATE INDEX IF NOT EXISTS idx_events_host ON events(host_id);
 CREATE INDEX IF NOT EXISTS idx_signups_event ON signups(event_id);
 CREATE INDEX IF NOT EXISTS idx_signups_user ON signups(user_id);
 CREATE INDEX IF NOT EXISTS idx_venues_owner ON venues(owner_id);
+CREATE INDEX IF NOT EXISTS idx_invitations_invitee ON invitations(invitee_id);
+CREATE INDEX IF NOT EXISTS idx_invitations_event ON invitations(event_id);
 
 -- Sample data (optional)
 -- INSERT INTO users (email, password, name, performer_type, bio) VALUES

@@ -18,6 +18,7 @@ const SIGNUPS_TABLE = process.env.SIGNUPS_TABLE;
 const CONVERSATIONS_TABLE = process.env.CONVERSATIONS_TABLE;
 const MESSAGES_TABLE = process.env.MESSAGES_TABLE;
 const CONVERSATION_PARTICIPANTS_TABLE = process.env.CONVERSATION_PARTICIPANTS_TABLE;
+const INVITATIONS_TABLE = process.env.INVITATIONS_TABLE;
 
 // Token storage
 const TOKENS_TABLE = process.env.TOKENS_TABLE;
@@ -289,6 +290,11 @@ exports.handler = async (event, context) => {
               'DELETE /api/admin/venues/{id}'
             ],
             invitations: [
+              'GET /api/invitations/my-invitations',
+              'GET /api/invitations/event/{eventId}',
+              'POST /api/invitations',
+              'PATCH /api/invitations/{id}/respond',
+              'DELETE /api/invitations/{id}',
               'POST /api/invitations/send'
             ],
             chat: [
@@ -2279,6 +2285,316 @@ Questions? Contact ${inviterName} at ${inviterEmail}
       };
     }
 
+    // ===== INVITATION ENDPOINTS =====
+    
+    // Get user's invitations
+    if (path === '/api/invitations/my-invitations' && httpMethod === 'GET') {
+      const user = await authenticate();
+      if (!user) {
+        return {
+          statusCode: 401,
+          headers: corsHeaders,
+          body: JSON.stringify({ message: 'Unauthorized' })
+        };
+      }
+
+      try {
+        const result = await dynamodb.query({
+          TableName: INVITATIONS_TABLE,
+          IndexName: 'InviteeIndex',
+          KeyConditionExpression: 'invitee_id = :userId',
+          ExpressionAttributeValues: {
+            ':userId': user.id
+          }
+        }).promise();
+
+        // TODO: Enhance with event and user details
+        return {
+          statusCode: 200,
+          headers: corsHeaders,
+          body: JSON.stringify(result.Items || [])
+        };
+      } catch (error) {
+        console.error('Error fetching invitations:', error);
+        return {
+          statusCode: 500,
+          headers: corsHeaders,
+          body: JSON.stringify({ message: 'Failed to fetch invitations' })
+        };
+      }
+    }
+
+    // Get invitations for an event
+    if (path.match(/^\/api\/invitations\/event\/(.+)$/) && httpMethod === 'GET') {
+      const user = await authenticate();
+      if (!user) {
+        return {
+          statusCode: 401,
+          headers: corsHeaders,
+          body: JSON.stringify({ message: 'Unauthorized' })
+        };
+      }
+
+      const eventId = path.match(/^\/api\/invitations\/event\/(.+)$/)[1];
+
+      try {
+        // TODO: Add authorization check to ensure user is host or cohost
+        const result = await dynamodb.query({
+          TableName: INVITATIONS_TABLE,
+          IndexName: 'EventIndex',
+          KeyConditionExpression: 'event_id = :eventId',
+          ExpressionAttributeValues: {
+            ':eventId': eventId
+          }
+        }).promise();
+
+        return {
+          statusCode: 200,
+          headers: corsHeaders,
+          body: JSON.stringify(result.Items || [])
+        };
+      } catch (error) {
+        console.error('Error fetching event invitations:', error);
+        return {
+          statusCode: 500,
+          headers: corsHeaders,
+          body: JSON.stringify({ message: 'Failed to fetch event invitations' })
+        };
+      }
+    }
+
+    // Create invitation
+    if (path === '/api/invitations' && httpMethod === 'POST') {
+      const user = await authenticate();
+      if (!user) {
+        return {
+          statusCode: 401,
+          headers: corsHeaders,
+          body: JSON.stringify({ message: 'Unauthorized' })
+        };
+      }
+
+      const { eventId, inviteeId, type, message } = requestBody;
+
+      // Validate required fields
+      if (!eventId || !inviteeId || !type) {
+        return {
+          statusCode: 400,
+          headers: corsHeaders,
+          body: JSON.stringify({ message: 'Missing required fields' })
+        };
+      }
+
+      if (!['cohost', 'performer'].includes(type)) {
+        return {
+          statusCode: 400,
+          headers: corsHeaders,
+          body: JSON.stringify({ message: 'Type must be cohost or performer' })
+        };
+      }
+
+      try {
+        // Check if invitation already exists
+        const existingResult = await dynamodb.scan({
+          TableName: INVITATIONS_TABLE,
+          FilterExpression: 'event_id = :eventId AND invitee_id = :inviteeId AND #type = :type AND #status = :status',
+          ExpressionAttributeNames: {
+            '#type': 'type',
+            '#status': 'status'
+          },
+          ExpressionAttributeValues: {
+            ':eventId': eventId,
+            ':inviteeId': inviteeId,
+            ':type': type,
+            ':status': 'pending'
+          }
+        }).promise();
+
+        if (existingResult.Items && existingResult.Items.length > 0) {
+          return {
+            statusCode: 400,
+            headers: corsHeaders,
+            body: JSON.stringify({ message: 'An invitation of this type already exists for this user and event' })
+          };
+        }
+
+        // Create invitation
+        const invitation = {
+          id: uuidv4(),
+          event_id: eventId,
+          inviter_id: user.id,
+          invitee_id: inviteeId,
+          type: type,
+          message: message || null,
+          status: 'pending',
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        };
+
+        await dynamodb.put({
+          TableName: INVITATIONS_TABLE,
+          Item: invitation
+        }).promise();
+
+        return {
+          statusCode: 201,
+          headers: corsHeaders,
+          body: JSON.stringify(invitation)
+        };
+      } catch (error) {
+        console.error('Error creating invitation:', error);
+        return {
+          statusCode: 500,
+          headers: corsHeaders,
+          body: JSON.stringify({ message: 'Failed to create invitation' })
+        };
+      }
+    }
+
+    // Respond to invitation
+    if (path.match(/^\/api\/invitations\/(.+)\/respond$/) && httpMethod === 'PATCH') {
+      const user = await authenticate();
+      if (!user) {
+        return {
+          statusCode: 401,
+          headers: corsHeaders,
+          body: JSON.stringify({ message: 'Unauthorized' })
+        };
+      }
+
+      const invitationId = path.match(/^\/api\/invitations\/(.+)\/respond$/)[1];
+      const { status } = requestBody;
+
+      if (!['accepted', 'declined'].includes(status)) {
+        return {
+          statusCode: 400,
+          headers: corsHeaders,
+          body: JSON.stringify({ message: 'Status must be accepted or declined' })
+        };
+      }
+
+      try {
+        // Get invitation
+        const invitationResult = await dynamodb.get({
+          TableName: INVITATIONS_TABLE,
+          Key: { id: invitationId }
+        }).promise();
+
+        if (!invitationResult.Item) {
+          return {
+            statusCode: 404,
+            headers: corsHeaders,
+            body: JSON.stringify({ message: 'Invitation not found' })
+          };
+        }
+
+        const invitation = invitationResult.Item;
+
+        if (invitation.invitee_id !== user.id) {
+          return {
+            statusCode: 403,
+            headers: corsHeaders,
+            body: JSON.stringify({ message: 'Unauthorized to respond to this invitation' })
+          };
+        }
+
+        if (invitation.status !== 'pending') {
+          return {
+            statusCode: 400,
+            headers: corsHeaders,
+            body: JSON.stringify({ message: 'Invitation already responded to' })
+          };
+        }
+
+        // Update invitation
+        const updatedInvitation = {
+          ...invitation,
+          status: status,
+          responded_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        };
+
+        await dynamodb.put({
+          TableName: INVITATIONS_TABLE,
+          Item: updatedInvitation
+        }).promise();
+
+        // TODO: If accepted, add user to appropriate role (cohost or performer)
+        // This would require integration with Events/Signups tables
+
+        return {
+          statusCode: 200,
+          headers: corsHeaders,
+          body: JSON.stringify(updatedInvitation)
+        };
+      } catch (error) {
+        console.error('Error responding to invitation:', error);
+        return {
+          statusCode: 500,
+          headers: corsHeaders,
+          body: JSON.stringify({ message: 'Failed to respond to invitation' })
+        };
+      }
+    }
+
+    // Delete invitation
+    if (path.match(/^\/api\/invitations\/(.+)$/) && httpMethod === 'DELETE') {
+      const user = await authenticate();
+      if (!user) {
+        return {
+          statusCode: 401,
+          headers: corsHeaders,
+          body: JSON.stringify({ message: 'Unauthorized' })
+        };
+      }
+
+      const invitationId = path.match(/^\/api\/invitations\/(.+)$/)[1];
+
+      try {
+        // Get invitation to verify ownership
+        const invitationResult = await dynamodb.get({
+          TableName: INVITATIONS_TABLE,
+          Key: { id: invitationId }
+        }).promise();
+
+        if (!invitationResult.Item) {
+          return {
+            statusCode: 404,
+            headers: corsHeaders,
+            body: JSON.stringify({ message: 'Invitation not found' })
+          };
+        }
+
+        const invitation = invitationResult.Item;
+
+        if (invitation.inviter_id !== user.id && invitation.invitee_id !== user.id) {
+          return {
+            statusCode: 403,
+            headers: corsHeaders,
+            body: JSON.stringify({ message: 'Unauthorized to delete this invitation' })
+          };
+        }
+
+        await dynamodb.delete({
+          TableName: INVITATIONS_TABLE,
+          Key: { id: invitationId }
+        }).promise();
+
+        return {
+          statusCode: 200,
+          headers: corsHeaders,
+          body: JSON.stringify({ message: 'Invitation deleted successfully' })
+        };
+      } catch (error) {
+        console.error('Error deleting invitation:', error);
+        return {
+          statusCode: 500,
+          headers: corsHeaders,
+          body: JSON.stringify({ message: 'Failed to delete invitation' })
+        };
+      }
+    }
+
     // ===== CHAT ENDPOINTS =====
     
     // Get user's conversations (both direct and group chats)
@@ -3052,13 +3368,18 @@ Questions? Contact ${inviterName} at ${inviterEmail}
           };
         }
 
-        // Create group chat
+        // Create group chat with event title and date
+        const eventDate = new Date(event.date).toLocaleDateString('en-US', { 
+          weekday: 'short', 
+          month: 'short', 
+          day: 'numeric' 
+        });
         const groupChatId = uuidv4();
         const groupChat = {
           id: groupChatId,
           type: 'group',
           event_id: eventId,
-          title: `${event.title} - Event Chat`,
+          title: `${event.title} - ${eventDate}`,
           created_by: user.id,
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
