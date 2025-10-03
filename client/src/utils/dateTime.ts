@@ -27,7 +27,12 @@ export const formatDateTime12Hour = (dateTimeString: string): string => {
 }
 
 export const formatDate = (dateString: string): string => {
-  const date = new Date(dateString)
+  // Parse date string manually to avoid timezone issues
+  // dateString is in format "YYYY-MM-DD"
+  const [year, month, day] = dateString.split('-').map(Number)
+  
+  // Create date in local timezone (not UTC)
+  const date = new Date(year, month - 1, day) // month is 0-indexed
   
   return date.toLocaleDateString('en-US', {
     weekday: 'long',
