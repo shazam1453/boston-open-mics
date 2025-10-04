@@ -26,29 +26,35 @@ export default function Home() {
         </div>
 
         <div className="grid md:grid-cols-3 gap-8 mt-16">
-          <div className="card text-center">
+          <Link to="/events" className="card text-center hover:shadow-lg transition-shadow cursor-pointer">
             <div className="text-3xl mb-4">🎤</div>
             <h3 className="text-lg font-semibold mb-2">Find Events</h3>
             <p className="text-gray-600">
               Discover open mics, showcases, and competitions happening around Boston
             </p>
-          </div>
+          </Link>
           
-          <div className="card text-center">
+          <Link 
+            to={user ? "/events" : "/login"} 
+            className="card text-center hover:shadow-lg transition-shadow cursor-pointer"
+          >
             <div className="text-3xl mb-4">📝</div>
             <h3 className="text-lg font-semibold mb-2">Sign Up to Perform</h3>
             <p className="text-gray-600">
               Reserve your spot at events and manage your performance schedule
             </p>
-          </div>
+          </Link>
           
-          <div className="card text-center">
+          <Link 
+            to={user ? "/profile" : "/login"} 
+            className="card text-center hover:shadow-lg transition-shadow cursor-pointer"
+          >
             <div className="text-3xl mb-4">🏢</div>
             <h3 className="text-lg font-semibold mb-2">Host Events</h3>
             <p className="text-gray-600">
               Venue owners can create and manage their own open mic events
             </p>
-          </div>
+          </Link>
         </div>
       </div>
     </div>
