@@ -144,7 +144,7 @@ export const eventsAPI = {
     api.put<{ invite: Invite }>(`/invites/${inviteId}/respond`, { response, ...performanceData }),
   
   // Booked mic management
-  updatePerformerOrder: (eventId: string | number, performerOrder: { signupId: string | number; order: number; performanceLength?: number }[]) =>
+  updatePerformerOrder: (eventId: string | number, performerOrder: { signupId: string | number; order: number; performanceLength?: string | number }[]) =>
     api.put<{ signups: Signup[] }>(`/events/${eventId}/performer-order`, { performerOrder }),
   
   updatePerformerLength: (signupId: string | number, performanceLength: string) =>
