@@ -261,6 +261,7 @@ exports.handler = async (event, context) => {
               'PUT /api/events/{id}',
               'POST /api/events/{id}/start',
               'POST /api/events/{id}/finish',
+              'POST /api/events/{id}/set-current-performer',
               'GET /api/events/host/{hostId}',
               'POST /api/events/{id}/randomize-order'
             ],
@@ -1864,6 +1865,118 @@ exports.handler = async (event, context) => {
         UpdateExpression: 'SET event_status = :status, updated_at = :updated_at',
         ExpressionAttributeValues: {
           ':status': 'finished',
+          ':updated_at': new Date().toISOString()
+        }
+      }).promise();
+      
+      const updatedEventResult = await dynamodb.get({
+        TableName: EVENTS_TABLE,
+        Key: { id: eventId }
+      }).promise();
+      
+      return {
+        statusCode: 200,
+        headers: corsHeaders,
+        body: JSON.stringify({ event: updatedEventResult.Item })
+      };
+    }
+    
+    // Set current performer endpoint
+    if (path.match(/^\/api\/events\/[^\/]+\/set-current-performer$/) && httpMethod === 'POST') {
+      const user = await authenticate();
+      if (!user) {
+        return {
+          statusCode: 401,
+          headers: corsHeaders,
+          body: JSON.stringify({ message: 'Unauthorized' })
+        };
+      }
+      
+      const eventId = path.split('/')[3];
+      const { signupId } = requestBody;
+      
+      if (!signupId) {
+        return {
+          statusCode: 400,
+          headers: corsHeaders,
+          body: JSON.stringify({ message: 'Signup ID is required' })
+        };
+      }
+      
+      // Get the event to check if user is the host
+      const eventResult = await dynamodb.get({
+        TableName: EVENTS_TABLE,
+        Key: { id: eventId }
+      }).promise();
+      
+      if (!eventResult.Item) {
+        return {
+          statusCode: 404,
+          headers: corsHeaders,
+          body: JSON.stringify({ message: 'Event not found' })
+        };
+      }
+      
+      const event = eventResult.Item;
+      if (event.host_id !== user.id) {
+        return {
+          statusCode: 403,
+          headers: corsHeaders,
+          body: JSON.stringify({ message: 'Only event hosts can set current performer' })
+        };
+      }
+      
+      // Verify the signup exists and belongs to this event
+      const signupResult = await dynamodb.get({
+        TableName: SIGNUPS_TABLE,
+        Key: { id: signupId }
+      }).promise();
+      
+      if (!signupResult.Item || signupResult.Item.event_id !== eventId) {
+        return {
+          statusCode: 404,
+          headers: corsHeaders,
+          body: JSON.stringify({ message: 'Signup not found for this event' })
+        };
+      }
+      
+      // Get all signups for this event to update current performer status
+      const allSignupsResult = await dynamodb.query({
+        TableName: SIGNUPS_TABLE,
+        IndexName: 'EventIndex',
+        KeyConditionExpression: 'event_id = :event_id',
+        ExpressionAttributeValues: {
+          ':event_id': eventId
+        }
+      }).promise();
+      
+      // Update all signups: clear current performer status and set new one
+      const updatePromises = allSignupsResult.Items.map(signup => {
+        const isCurrentPerformer = signup.id === signupId;
+        return dynamodb.update({
+          TableName: SIGNUPS_TABLE,
+          Key: { id: signup.id },
+          UpdateExpression: 'SET is_current_performer = :is_current, #status = :status, updated_at = :updated_at',
+          ExpressionAttributeNames: {
+            '#status': 'status'
+          },
+          ExpressionAttributeValues: {
+            ':is_current': isCurrentPerformer,
+            ':status': isCurrentPerformer ? 'performing' : signup.status,
+            ':updated_at': new Date().toISOString()
+          }
+        }).promise();
+      });
+      
+      await Promise.all(updatePromises);
+      
+      // Update event's current performer
+      await dynamodb.update({
+        TableName: EVENTS_TABLE,
+        Key: { id: eventId },
+        UpdateExpression: 'SET current_performer_id = :performer_id, updated_at = :updated_at',
+        ExpressionAttributeValues: {
+          ':performer_id': signupId,
           ':updated_at': new Date().toISOString()
         }
       }).promise();
