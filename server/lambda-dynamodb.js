@@ -259,6 +259,8 @@ exports.handler = async (event, context) => {
               'GET /api/events/{id}',
               'POST /api/events',
               'PUT /api/events/{id}',
+              'POST /api/events/{id}/start',
+              'POST /api/events/{id}/finish',
               'GET /api/events/host/{hostId}',
               'POST /api/events/{id}/randomize-order'
             ],
@@ -1747,6 +1749,125 @@ exports.handler = async (event, context) => {
       }).promise();
       
       // Get updated event
+      const updatedEventResult = await dynamodb.get({
+        TableName: EVENTS_TABLE,
+        Key: { id: eventId }
+      }).promise();
+      
+      return {
+        statusCode: 200,
+        headers: corsHeaders,
+        body: JSON.stringify({ event: updatedEventResult.Item })
+      };
+    }
+    
+    // Start event endpoint
+    if (path.match(/^\/api\/events\/[^\/]+\/start$/) && httpMethod === 'POST') {
+      const user = await authenticate();
+      if (!user) {
+        return {
+          statusCode: 401,
+          headers: corsHeaders,
+          body: JSON.stringify({ message: 'Unauthorized' })
+        };
+      }
+      
+      const eventId = path.split('/')[3];
+      
+      // Get the event to check if user is the host
+      const eventResult = await dynamodb.get({
+        TableName: EVENTS_TABLE,
+        Key: { id: eventId }
+      }).promise();
+      
+      if (!eventResult.Item) {
+        return {
+          statusCode: 404,
+          headers: corsHeaders,
+          body: JSON.stringify({ message: 'Event not found' })
+        };
+      }
+      
+      const event = eventResult.Item;
+      if (event.host_id !== user.id) {
+        return {
+          statusCode: 403,
+          headers: corsHeaders,
+          body: JSON.stringify({ message: 'Only event hosts can start events' })
+        };
+      }
+      
+      // Update event status to live
+      await dynamodb.update({
+        TableName: EVENTS_TABLE,
+        Key: { id: eventId },
+        UpdateExpression: 'SET event_status = :status, started_at = :started_at, updated_at = :updated_at',
+        ExpressionAttributeValues: {
+          ':status': 'live',
+          ':started_at': new Date().toISOString(),
+          ':updated_at': new Date().toISOString()
+        }
+      }).promise();
+      
+      const updatedEventResult = await dynamodb.get({
+        TableName: EVENTS_TABLE,
+        Key: { id: eventId }
+      }).promise();
+      
+      return {
+        statusCode: 200,
+        headers: corsHeaders,
+        body: JSON.stringify({ event: updatedEventResult.Item })
+      };
+    }
+    
+    // Finish event endpoint
+    if (path.match(/^\/api\/events\/[^\/]+\/finish$/) && httpMethod === 'POST') {
+      const user = await authenticate();
+      if (!user) {
+        return {
+          statusCode: 401,
+          headers: corsHeaders,
+          body: JSON.stringify({ message: 'Unauthorized' })
+        };
+      }
+      
+      const eventId = path.split('/')[3];
+      
+      // Get the event to check if user is the host
+      const eventResult = await dynamodb.get({
+        TableName: EVENTS_TABLE,
+        Key: { id: eventId }
+      }).promise();
+      
+      if (!eventResult.Item) {
+        return {
+          statusCode: 404,
+          headers: corsHeaders,
+          body: JSON.stringify({ message: 'Event not found' })
+        };
+      }
+      
+      const event = eventResult.Item;
+      if (event.host_id !== user.id) {
+        return {
+          statusCode: 403,
+          headers: corsHeaders,
+          body: JSON.stringify({ message: 'Only event hosts can finish events' })
+        };
+      }
+      
+      // Update event status to finished
+      await dynamodb.update({
+        TableName: EVENTS_TABLE,
+        Key: { id: eventId },
+        UpdateExpression: 'SET event_status = :status, updated_at = :updated_at',
+        ExpressionAttributeValues: {
+          ':status': 'finished',
+          ':updated_at': new Date().toISOString()
+        }
+      }).promise();
+      
       const updatedEventResult = await dynamodb.get({
         TableName: EVENTS_TABLE,
         Key: { id: eventId }

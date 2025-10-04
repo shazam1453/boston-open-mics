@@ -3,7 +3,6 @@ import { Link } from 'react-router-dom'
 import { eventsAPI, signupsAPI } from '../utils/api'
 import { useAuth } from '../hooks/useAuth'
 import { formatTime12Hour, formatTimeOnly12Hour, formatDate } from '../utils/dateTime'
-import { PERFORMANCE_TYPES } from '../constants/formOptions'
 import type { Event, Signup } from '../types'
 
 export default function Events() {
@@ -13,13 +12,7 @@ export default function Events() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [activeTab, setActiveTab] = useState<'all' | 'hosting' | 'performances'>('all')
-  const [showSignupForm, setShowSignupForm] = useState<string | number | null>(null)
-  const [submitting, setSubmitting] = useState(false)
-  const [signupForm, setSignupForm] = useState({
-    performerName: '',
-    performanceType: 'music',
-    notes: ''
-  })
+
 
   const filterOldEvents = (events: Event[]) => {
     const now = new Date()
@@ -161,32 +154,7 @@ export default function Events() {
     fetchData()
   }, [user, authLoading])
 
-  const handleQuickSignup = async (eventId: string | number) => {
-    if (!user) return
-    
-    setSubmitting(true)
-    try {
-      const response = await signupsAPI.create({
-        eventId,
-        performanceName: signupForm.performerName,
-        performanceType: signupForm.performanceType,
-        notes: signupForm.notes
-      })
-      
-      setUserSignups(prev => [...prev, response.data.signup])
-      setShowSignupForm(null)
-      setSignupForm({
-        performerName: user.name,
-        performanceType: 'music',
-        notes: ''
-      })
-    } catch (error: any) {
-      console.error('Error signing up:', error)
-      setError(error.response?.data?.message || 'Failed to sign up for event')
-    } finally {
-      setSubmitting(false)
-    }
-  }
+
 
   const getSignupStatus = (event: Event) => {
     // Handle booked mic events first
@@ -495,48 +463,9 @@ export default function Events() {
                 </div>
                 
                 <div className="space-y-2">
-                  {user && signupStatus.status === 'open' && event.signup_list_mode !== 'booked_mic' && (
-                    <button
-                      onClick={() => {
-                        setSignupForm({
-                          performerName: user.name,
-                          performanceType: 'music',
-                          notes: ''
-                        })
-                        setShowSignupForm(event.id)
-                      }}
-                      className="btn btn-primary w-full text-sm sm:text-base"
-                    >
-                      <span className="hidden sm:inline">Quick Sign Up</span>
-                      <span className="sm:hidden">🎤 Sign Up</span>
-                    </button>
-                  )}
-                  
-                  {user && signupStatus.status === 'open' && event.signup_list_mode === 'booked_mic' && (
-                    <div className="text-center text-sm text-purple-600 mb-2">
-                      <span className="font-medium">Invite-Only Event</span>
-                      <div className="text-xs text-purple-500">Performers are invited by the host</div>
-                    </div>
-                  )}
-                  
-                  {!user && signupStatus.status === 'open' && event.signup_list_mode !== 'booked_mic' && (
-                    <div className="text-center text-sm text-gray-600 mb-2">
-                      <Link to="/login" className="text-primary-600 hover:text-primary-700 underline">
-                        Login to sign up
-                      </Link>
-                    </div>
-                  )}
-                  
-                  {!user && signupStatus.status === 'open' && event.signup_list_mode === 'booked_mic' && (
-                    <div className="text-center text-sm text-purple-600 mb-2">
-                      <span className="font-medium">Invite-Only Event</span>
-                      <div className="text-xs text-purple-500">Performers are invited by the host</div>
-                    </div>
-                  )}
-                  
                   <Link
                     to={`/events/${event.id}`}
-                    className="btn btn-secondary w-full text-center text-sm sm:text-base"
+                    className="btn btn-primary w-full text-center text-sm sm:text-base"
                   >
                     <span className="hidden sm:inline">View Details</span>
                     <span className="sm:hidden">👁️ Details</span>
@@ -548,79 +477,7 @@ export default function Events() {
         </div>
       )}
 
-      {/* Quick Sign-up Modal */}
-      {showSignupForm && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-lg p-4 sm:p-6 w-full max-w-md max-h-[90vh] overflow-y-auto">
-            <h3 className="text-lg font-semibold mb-4">Quick Sign Up</h3>
-            <form onSubmit={(e) => {
-              e.preventDefault()
-              handleQuickSignup(showSignupForm)
-            }} className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Performer Name *
-                </label>
-                <input
-                  type="text"
-                  value={signupForm.performerName}
-                  onChange={(e) => setSignupForm(prev => ({ ...prev, performerName: e.target.value }))}
-                  className="input"
-                  placeholder="Your name or stage name"
-                  required
-                />
-              </div>
-              
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Performance Type *
-                </label>
-                <select
-                  value={signupForm.performanceType}
-                  onChange={(e) => setSignupForm(prev => ({ ...prev, performanceType: e.target.value }))}
-                  className="input"
-                  required
-                >
-                  {PERFORMANCE_TYPES.map(type => (
-                    <option key={type.value} value={type.value}>{type.label}</option>
-                  ))}
-                </select>
-              </div>
-              
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Notes (Optional)
-                </label>
-                <textarea
-                  value={signupForm.notes}
-                  onChange={(e) => setSignupForm(prev => ({ ...prev, notes: e.target.value }))}
-                  className="input"
-                  rows={2}
-                  placeholder="Any special requirements, song titles, etc."
-                />
-              </div>
-              
-              <div className="flex space-x-3 pt-4">
-                <button 
-                  type="submit" 
-                  className="btn btn-primary flex-1"
-                  disabled={submitting}
-                >
-                  {submitting ? 'Signing Up...' : 'Sign Me Up!'}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setShowSignupForm(null)}
-                  className="btn btn-secondary flex-1"
-                  disabled={submitting}
-                >
-                  Cancel
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+
     </div>
   )
 }
