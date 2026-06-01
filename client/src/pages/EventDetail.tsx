@@ -66,9 +66,9 @@ export default function EventDetail() {
       try {
         const [eventResponse, signupsResponse] = await Promise.all([
           eventsAPI.getById(id),
-          signupsAPI.getByEvent(id)
+          signupsAPI.getByEvent(id).catch(() => ({ data: [] }))
         ])
-        
+
         setEvent(eventResponse.data)
         setSignups(signupsResponse.data)
         

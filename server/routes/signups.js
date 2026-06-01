@@ -1,7 +1,7 @@
 const express = require('express');
 const { body, validationResult } = require('express-validator');
 const Signup = require('../models/Signup');
-const { auth } = require('../middleware/auth');
+const { auth, optionalAuth } = require('../middleware/auth');
 
 const router = express.Router();
 
@@ -45,7 +45,7 @@ router.post('/', auth, [
 });
 
 // Get signups for an event
-router.get('/event/:eventId', auth, async (req, res) => {
+router.get('/event/:eventId', optionalAuth, async (req, res) => {
   try {
     const signups = await Signup.findByEvent(req.params.eventId);
     res.json(signups);
