@@ -9,7 +9,10 @@ router.get('/conversations', auth, async (req, res) => {
     const result = await pool.query(`
       SELECT c.*,
         (SELECT row_to_json(lm) FROM (SELECT message_text, created_at as timestamp, sender_id FROM messages WHERE conversation_id = c.id ORDER BY created_at DESC LIMIT 1) lm) as last_message,
-        (SELECT COUNT(*) FROM messages m WHERE m.conversation_id = c.id AND m.created_at > cp.last_read_at AND m.sender_id != $1) as unread_count,
+        (SELECT COUNT(*) FROM messages m
+         WHERE m.conversation_id = c.id AND m.sender_id != $1
+         AND m.created_at > (SELECT last_read_at FROM conversation_participants WHERE conversation_id = c.id AND user_id = $1)
+        ) as unread_count,
         (
           SELECT row_to_json(u)
           FROM conversation_participants cp2
@@ -20,7 +23,7 @@ router.get('/conversations', auth, async (req, res) => {
       FROM conversations c
       JOIN conversation_participants cp ON c.id = cp.conversation_id
       WHERE cp.user_id = $1
-      ORDER BY last_message_at DESC NULLS LAST
+      ORDER BY (SELECT created_at FROM messages WHERE conversation_id = c.id ORDER BY created_at DESC LIMIT 1) DESC NULLS LAST
     `, [req.user.id]);
     res.json(result.rows);
   } catch (error) {
