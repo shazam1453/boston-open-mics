@@ -44,10 +44,12 @@ export const formatDate = (dateString: string): string => {
 
 export const formatTimeOnly12Hour = (dateTimeString: string): string => {
   const date = new Date(dateTimeString)
-  
+
+  // Display in UTC to match the time as entered (times are stored as UTC)
   return date.toLocaleTimeString('en-US', {
     hour: 'numeric',
     minute: '2-digit',
-    hour12: true
+    hour12: true,
+    timeZone: 'UTC'
   })
 }

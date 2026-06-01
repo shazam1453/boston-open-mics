@@ -944,7 +944,7 @@ export default function EventDetail() {
                       <strong>Signups Not Open Yet</strong>
                     </p>
                     <p className="text-yellow-600">
-                      Sign-ups open on {signupOpens?.toLocaleDateString()} at {event.signup_opens ? formatTimeOnly12Hour(event.signup_opens) : ''}
+                      Sign-ups open on {signupOpens?.toLocaleDateString('en-US', { timeZone: 'UTC' })} at {event.signup_opens ? formatTimeOnly12Hour(event.signup_opens) : ''}
                     </p>
                   </div>
                 ) : signupsClosed ? (
