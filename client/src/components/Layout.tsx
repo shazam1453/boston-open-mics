@@ -28,7 +28,7 @@ export default function Layout({ children }: LayoutProps) {
                 <span className="text-xl">🎤</span>
                 <span className="font-display font-bold text-lg sm:text-xl tracking-tight"
                       style={{ color: '#e8e0d4' }}>
-                  Boston <span style={{ color: '#f59e0b' }}>Open Mics</span>
+                  Boston <span style={{ color: '#f59e0b' }}>Showtime</span>
                 </span>
               </Link>
               <div className="hidden sm:flex items-center gap-1">
