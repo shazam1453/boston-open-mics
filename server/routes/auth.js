@@ -16,7 +16,7 @@ router.post('/register', [
   body('socialMedia.twitter').optional().trim(),
   body('socialMedia.tiktok').optional().trim(),
   body('socialMedia.youtube').optional().trim(),
-  body('socialMedia.website').optional().isURL().withMessage('Website must be a valid URL')
+  body('socialMedia.website').optional({ checkFalsy: true }).isURL().withMessage('Website must be a valid URL')
 ], async (req, res) => {
   try {
     const errors = validationResult(req);
