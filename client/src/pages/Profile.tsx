@@ -2702,6 +2702,33 @@ export default function Profile() {
                   required
                 />
               </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Sign-up Opens Time
+                  </label>
+                  <input
+                    type="time"
+                    value={eventForm.signupOpens}
+                    onChange={(e) => setEventForm(prev => ({ ...prev, signupOpens: e.target.value }))}
+                    className="input"
+                  />
+                  <p className="text-xs text-gray-500 mt-1">Leave empty for immediate signups</p>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Sign-up Deadline Time
+                  </label>
+                  <input
+                    type="time"
+                    value={eventForm.signupDeadline}
+                    onChange={(e) => setEventForm(prev => ({ ...prev, signupDeadline: e.target.value }))}
+                    className="input"
+                  />
+                  <p className="text-xs text-gray-500 mt-1">Leave empty for no deadline</p>
+                </div>
+              </div>
               
               <div className="grid grid-cols-2 gap-4">
                 <div>
