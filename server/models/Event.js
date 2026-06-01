@@ -81,37 +81,29 @@ class Event {
 
   static async findById(id) {
     const query = `
-      SELECT e.*, TO_CHAR(e.date, 'YYYY-MM-DD') as date, v.name as venue_name, v.address as venue_address,
+      SELECT e.*,
+             TO_CHAR(e.date, 'YYYY-MM-DD') as date,
+             v.name as venue_name, v.address as venue_address,
              u.name as host_name, u.email as host_email,
-             COUNT(DISTINCT s.id) as current_signups,
-             json_agg(
-               DISTINCT json_build_object(
-                 'user_id', ec.user_id,
-                 'user_name', cu.name,
-                 'user_email', cu.email
-               )
-             ) FILTER (WHERE ec.user_id IS NOT NULL) as cohosts,
-             json_agg(
-               json_build_object(
-                 'id', s.id,
-                 'user_id', s.user_id,
-                 'user_name', su.name,
-                 'performance_status', s.performance_status,
-                 'signup_order', s.signup_order,
-                 'signed_up_at', s.signed_up_at
-               ) ORDER BY s.signup_order
-             ) FILTER (WHERE s.id IS NOT NULL) as signups
+             (SELECT COUNT(*) FROM signups WHERE event_id = e.id AND status = 'confirmed') as current_signups,
+             (SELECT json_agg(json_build_object('user_id', ec.user_id, 'user_name', cu.name, 'user_email', cu.email))
+              FROM event_cohosts ec JOIN users cu ON ec.user_id = cu.id
+              WHERE ec.event_id = e.id) as cohosts,
+             (SELECT json_agg(sq ORDER BY sq.signup_order)
+              FROM (
+                SELECT s.id, s.user_id, su.name as user_name, s.performance_name,
+                       s.performance_type, s.status, s.performance_order as signup_order,
+                       s.notes, s.is_finished, s.is_current_performer, s.created_at as signed_up_at
+                FROM signups s
+                LEFT JOIN users su ON s.user_id = su.id
+                WHERE s.event_id = e.id AND s.status != 'cancelled'
+              ) sq) as signups
       FROM events e
       LEFT JOIN venues v ON e.venue_id = v.id
       LEFT JOIN users u ON e.host_id = u.id
-      LEFT JOIN signups s ON e.id = s.event_id AND s.status = 'confirmed'
-      LEFT JOIN users su ON s.user_id = su.id
-      LEFT JOIN event_cohosts ec ON e.id = ec.event_id
-      LEFT JOIN users cu ON ec.user_id = cu.id
       WHERE e.id = $1
-      GROUP BY e.id, v.name, v.address, u.name, u.email
     `;
-    
+
     const result = await pool.query(query, [id]);
     return result.rows[0];
   }
