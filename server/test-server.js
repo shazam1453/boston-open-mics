@@ -2079,8 +2079,166 @@ app.post('/api/invitations/send', (req, res) => {
   }, 500);
 });
 
+// ─── Chat routes (in-memory) ──────────────────────────────────────────────────
+const conversations = {};   // { [convId]: { id, participants, messages[], event_id? } }
+let convCounter = 1;
+
+function authUser(req, res) {
+  const token = req.header('Authorization')?.replace('Bearer ', '');
+  if (!token) { res.status(401).json({ message: 'No token provided' }); return null; }
+  const user = activeTokens[token];
+  if (!user) { res.status(401).json({ message: 'Invalid token' }); return null; }
+  return user;
+}
+
+function userConversations(userId) {
+  return Object.values(conversations).filter(c =>
+    c.participants.some(p => String(p.id) === String(userId))
+  );
+}
+
+// GET /api/chat/conversations
+app.get('/api/chat/conversations', (req, res) => {
+  const user = authUser(req, res); if (!user) return;
+  res.json(userConversations(user.id).map(c => ({
+    ...c,
+    messages: undefined,
+    last_message: c.messages[c.messages.length - 1] || null,
+    unread_count: 0,
+  })));
+});
+
+// POST /api/chat/conversations
+app.post('/api/chat/conversations', (req, res) => {
+  const user = authUser(req, res); if (!user) return;
+  const { other_user_id } = req.body;
+  const otherId = String(other_user_id);
+  // Find existing DM
+  const existing = Object.values(conversations).find(c =>
+    !c.event_id &&
+    c.participants.length === 2 &&
+    c.participants.some(p => String(p.id) === String(user.id)) &&
+    c.participants.some(p => String(p.id) === otherId)
+  );
+  if (existing) return res.json(existing);
+  const otherUser = Object.values(activeTokens).find(u => String(u.id) === otherId)
+    || { id: otherId, name: 'User', email: '' };
+  const conv = { id: String(convCounter++), participants: [user, otherUser], messages: [], event_id: null, type: 'direct' };
+  conversations[conv.id] = conv;
+  res.status(201).json(conv);
+});
+
+// GET /api/chat/conversations/:id/messages
+app.get('/api/chat/conversations/:id/messages', (req, res) => {
+  const user = authUser(req, res); if (!user) return;
+  const conv = conversations[req.params.id];
+  if (!conv) return res.status(404).json({ message: 'Conversation not found' });
+  res.json({ messages: conv.messages, hasMore: false });
+});
+
+// POST /api/chat/conversations/:id/messages
+app.post('/api/chat/conversations/:id/messages', (req, res) => {
+  const user = authUser(req, res); if (!user) return;
+  const conv = conversations[req.params.id];
+  if (!conv) return res.status(404).json({ message: 'Conversation not found' });
+  const msg = {
+    id: String(Date.now()),
+    conversation_id: conv.id,
+    sender_id: user.id,
+    sender_name: user.name,
+    message_text: req.body.message_text,
+    created_at: new Date().toISOString(),
+    is_read: false,
+  };
+  conv.messages.push(msg);
+  res.status(201).json(msg);
+});
+
+// PUT /api/chat/messages/:id/read
+app.put('/api/chat/messages/:id/read', (req, res) => {
+  res.json({ message: 'Marked as read' });
+});
+
+// DELETE /api/chat/conversations/:id
+app.delete('/api/chat/conversations/:id', (req, res) => {
+  const user = authUser(req, res); if (!user) return;
+  delete conversations[req.params.id];
+  res.json({ message: 'Conversation deleted' });
+});
+
+// GET /api/events/:id/chat
+app.get('/api/events/:id/chat', (req, res) => {
+  const conv = Object.values(conversations).find(c => String(c.event_id) === req.params.id);
+  if (!conv) return res.status(404).json({ message: 'No group chat for this event' });
+  res.json({ conversation: conv });
+});
+
+// POST /api/events/:id/chat/create
+app.post('/api/events/:id/chat/create', (req, res) => {
+  const user = authUser(req, res); if (!user) return;
+  const eventId = req.params.id;
+  const existing = Object.values(conversations).find(c => String(c.event_id) === eventId);
+  if (existing) return res.json({ message: 'Already exists', conversation: existing });
+  const conv = { id: String(convCounter++), participants: [user], messages: [], event_id: eventId, type: 'group' };
+  conversations[conv.id] = conv;
+  res.status(201).json({ message: 'Group chat created', conversation: conv });
+});
+
+// POST /api/events/:id/chat/join
+app.post('/api/events/:id/chat/join', (req, res) => {
+  const user = authUser(req, res); if (!user) return;
+  const conv = Object.values(conversations).find(c => String(c.event_id) === req.params.id);
+  if (!conv) return res.status(404).json({ message: 'No group chat found' });
+  if (!conv.participants.some(p => String(p.id) === String(user.id))) {
+    conv.participants.push(user);
+  }
+  res.json({ message: 'Joined', conversation: conv });
+});
+
+// POST /api/events/:id/chat/leave
+app.post('/api/events/:id/chat/leave', (req, res) => {
+  const user = authUser(req, res); if (!user) return;
+  const conv = Object.values(conversations).find(c => String(c.event_id) === req.params.id);
+  if (conv) conv.participants = conv.participants.filter(p => String(p.id) !== String(user.id));
+  res.json({ message: 'Left' });
+});
+
+// DELETE /api/events/:id/chat/delete
+app.delete('/api/events/:id/chat/delete', (req, res) => {
+  const user = authUser(req, res); if (!user) return;
+  const key = Object.keys(conversations).find(k => String(conversations[k].event_id) === req.params.id);
+  if (key) delete conversations[key];
+  res.json({ message: 'Deleted' });
+});
+
+// ─── Availability routes (in-memory store keyed by user id) ───────────────────
+const availabilityStore = {}; // { [userId]: { 'YYYY-MM-DD': 'available'|'unavailable' } }
+
+app.get('/api/availability', (req, res) => {
+  const token = req.header('Authorization')?.replace('Bearer ', '');
+  if (!token) return res.status(401).json({ message: 'No token provided' });
+  const user = activeTokens[token];
+  if (!user) return res.status(401).json({ message: 'Invalid token' });
+  const userId = String(user.id);
+  res.json({ availability: availabilityStore[userId] || {} });
+});
+
+app.put('/api/availability', (req, res) => {
+  const token = req.header('Authorization')?.replace('Bearer ', '');
+  if (!token) return res.status(401).json({ message: 'No token provided' });
+  const user = activeTokens[token];
+  if (!user) return res.status(401).json({ message: 'Invalid token' });
+  const userId = String(user.id);
+  const { availability } = req.body;
+  if (!availability || typeof availability !== 'object') {
+    return res.status(400).json({ message: 'availability object required' });
+  }
+  availabilityStore[userId] = availability;
+  res.json({ message: 'Availability saved', count: Object.keys(availability).length });
+});
+
 // 404 handler
-app.use('*', (req, res) => {
+app.use('*splat', (req, res) => {
   res.status(404).json({ message: 'Route not found' });
 });
 

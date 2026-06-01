@@ -309,4 +309,11 @@ export const chatAPI = {
     api.delete<{ message: string }>(`/chat/conversations/${conversationId}`)
 }
 
+// Availability API
+export const availabilityAPI = {
+  get: () => api.get<{ availability: Record<string, 'available' | 'unavailable'> }>('/availability'),
+  save: (availability: Record<string, 'available' | 'unavailable'>) =>
+    api.put<{ message: string; count: number }>('/availability', { availability }),
+}
+
 export default api

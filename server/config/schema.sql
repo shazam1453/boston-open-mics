@@ -133,6 +133,20 @@ CREATE INDEX IF NOT EXISTS idx_venues_owner ON venues(owner_id);
 CREATE INDEX IF NOT EXISTS idx_invitations_invitee ON invitations(invitee_id);
 CREATE INDEX IF NOT EXISTS idx_invitations_event ON invitations(event_id);
 
+-- User availability table
+CREATE TABLE IF NOT EXISTS user_availability (
+    id SERIAL PRIMARY KEY,
+    user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+    date DATE NOT NULL,
+    status VARCHAR(20) NOT NULL CHECK (status IN ('available', 'unavailable')),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(user_id, date)
+);
+
+CREATE INDEX IF NOT EXISTS idx_availability_user ON user_availability(user_id);
+CREATE INDEX IF NOT EXISTS idx_availability_date ON user_availability(date);
+
 -- Sample data (optional)
 -- INSERT INTO users (email, password, name, performer_type, bio) VALUES
 -- ('john@example.com', '$2a$12$hash', 'John Doe', 'musician', 'Singer-songwriter from Boston'),

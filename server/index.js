@@ -37,6 +37,7 @@ app.use('/api/signups', require('./routes/signups'));
 app.use('/api/users', require('./routes/users'));
 app.use('/api/recurring-events', require('./routes/recurringEvents'));
 app.use('/api/invitations', require('./routes/invitations'));
+app.use('/api/availability', require('./routes/availability'));
 
 // Health check
 app.get('/health', (req, res) => {

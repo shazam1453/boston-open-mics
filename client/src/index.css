@@ -4,39 +4,75 @@
 
 @layer base {
   html {
-    font-family: system-ui, sans-serif;
+    font-family: 'Inter', system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    font-family: 'Space Grotesk', 'Inter', system-ui, sans-serif;
+  }
+
+  body {
+    background-color: #1a1714;
+    color: #e8e0d4;
   }
 }
 
 @layer components {
   .btn {
-    @apply px-4 py-2 rounded-md font-medium transition-colors min-h-[44px] flex items-center justify-center touch-manipulation;
+    @apply px-4 py-2 rounded font-semibold transition-all duration-150 min-h-[44px]
+           flex items-center justify-center touch-manipulation;
   }
-  
+
   .btn-primary {
-    @apply bg-primary-600 text-white hover:bg-primary-700 active:bg-primary-800;
+    @apply bg-primary-500 text-gray-950
+           hover:bg-primary-400 active:bg-primary-600
+           hover:scale-[1.02] active:scale-[0.98];
   }
-  
+
   .btn-secondary {
-    @apply bg-gray-200 text-gray-900 hover:bg-gray-300 active:bg-gray-400;
+    @apply bg-transparent text-stone-300 border border-stone-600
+           hover:border-stone-400 hover:text-white active:bg-surface-700
+           hover:scale-[1.02] active:scale-[0.98];
   }
-  
+
   .input {
-    @apply w-full px-3 py-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent text-base min-h-[44px];
+    @apply w-full px-3 py-3 rounded border border-stone-700
+           bg-surface-800 text-stone-100 placeholder-stone-500
+           focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent
+           text-base min-h-[44px] transition-colors;
   }
-  
+
   .card {
-    @apply bg-white rounded-lg shadow-md p-4 sm:p-6;
+    @apply bg-surface-800 rounded-lg p-4 sm:p-6
+           border border-stone-800
+           hover:border-stone-600 hover:-translate-y-0.5
+           transition-all duration-200;
   }
-  
-  /* Mobile-specific improvements */
+
+  .card-flat {
+    @apply bg-surface-800 rounded-lg p-4 sm:p-6 border border-stone-800;
+  }
+
   @media (max-width: 640px) {
-    .btn {
-      @apply text-sm px-3 py-2;
-    }
-    
-    .card {
-      @apply p-4 mx-2;
-    }
+    .btn  { @apply text-sm px-3 py-2; }
+    .card { @apply p-4 mx-1; }
   }
 }
+
+/* Dark-theme remapping for pages not yet restyled */
+.bg-white        { background-color: #242018 !important; }
+.bg-gray-50      { background-color: #1a1714 !important; }
+.bg-gray-100     { background-color: #242018 !important; }
+.bg-gray-200     { background-color: #2e2a22 !important; }
+
+.text-gray-900   { color: #e8e0d4 !important; }
+.text-gray-800   { color: #d4cabc !important; }
+.text-gray-700   { color: #b8ae9e !important; }
+.text-gray-600   { color: #9c9080 !important; }
+
+.border-gray-200 { border-color: #3a352b !important; }
+.border-gray-300 { border-color: #4a4438 !important; }
+
+.text-primary-600       { color: #f59e0b !important; }
+.hover\:text-primary-600:hover { color: #fbbf24 !important; }

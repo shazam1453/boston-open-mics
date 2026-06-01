@@ -41,5 +41,16 @@
     "amenities": [],
     "owner_id": 1,
     "owner_name": "Test User"
+  },
+  {
+    "id": 501,
+    "name": "The Comedy Studio",
+    "address": "44 west ave",
+    "phone": "",
+    "email": "",
+    "description": "",
+    "amenities": [],
+    "owner_id": 1,
+    "owner_name": "Test User"
   }
 ]
