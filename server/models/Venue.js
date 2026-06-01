@@ -37,7 +37,7 @@ class Venue {
     const result = await pool.query(query, [id]);
     const venue = result.rows[0];
     if (venue) {
-      venue.amenities = JSON.parse(venue.amenities || '[]');
+      venue.amenities = Array.isArray(venue.amenities) ? venue.amenities : JSON.parse(venue.amenities || '[]');
     }
     return venue;
   }
@@ -81,7 +81,7 @@ class Venue {
     const result = await pool.query(query, values);
     const venue = result.rows[0];
     if (venue) {
-      venue.amenities = JSON.parse(venue.amenities || '[]');
+      venue.amenities = Array.isArray(venue.amenities) ? venue.amenities : JSON.parse(venue.amenities || '[]');
     }
     return venue;
   }
