@@ -3,22 +3,21 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { useAuth } from '../hooks/useAuth'
 import { usersAPI, chatAPI } from '../utils/api'
 
-const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
-const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+const DAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+const MONTH_NAMES = ['January', 'February', 'March', 'April', 'May', 'June',
+  'July', 'August', 'September', 'October', 'November', 'December']
 
-function getNext6Weeks() {
-  const weeks: Date[][] = []
-  const today = new Date()
-  today.setHours(0, 0, 0, 0)
-  const start = new Date(today)
-  start.setDate(start.getDate() - start.getDay())
-  for (let w = 0; w < 6; w++) {
-    const week: Date[] = []
-    for (let d = 0; d < 7; d++) {
-      const day = new Date(start)
-      day.setDate(start.getDate() + w * 7 + d)
-      week.push(day)
-    }
+function getCalendarWeeks(year: number, month: number): (Date | null)[][] {
+  const first = new Date(year, month, 1)
+  const last = new Date(year, month + 1, 0)
+  const weeks: (Date | null)[][] = []
+  let week: (Date | null)[] = Array(first.getDay()).fill(null)
+  for (let d = 1; d <= last.getDate(); d++) {
+    week.push(new Date(year, month, d))
+    if (week.length === 7) { weeks.push(week); week = [] }
+  }
+  if (week.length) {
+    while (week.length < 7) week.push(null)
     weeks.push(week)
   }
   return weeks
@@ -33,6 +32,11 @@ export default function UserProfile() {
   const [loading, setLoading] = useState(true)
   const [startingChat, setStartingChat] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  const [viewYear, setViewYear] = useState(today.getFullYear())
+  const [viewMonth, setViewMonth] = useState(today.getMonth())
 
   useEffect(() => {
     if (!id) return
@@ -58,12 +62,19 @@ export default function UserProfile() {
     }
   }
 
+  const prevMonth = () => {
+    if (viewMonth === 0) { setViewMonth(11); setViewYear(y => y - 1) }
+    else setViewMonth(m => m - 1)
+  }
+  const nextMonth = () => {
+    if (viewMonth === 11) { setViewMonth(0); setViewYear(y => y + 1) }
+    else setViewMonth(m => m + 1)
+  }
+
   if (loading) return <div className="text-center py-12">Loading...</div>
   if (error || !profile) return <div className="text-center py-12 text-red-500">{error || 'User not found'}</div>
 
-  const weeks = getNext6Weeks()
-  const today = new Date()
-  today.setHours(0, 0, 0, 0)
+  const weeks = getCalendarWeeks(viewYear, viewMonth)
 
   return (
     <div className="max-w-2xl mx-auto space-y-6">
@@ -81,11 +92,7 @@ export default function UserProfile() {
           </div>
         </div>
         {currentUser && currentUser.id !== profile.id && (
-          <button
-            onClick={handleStartChat}
-            disabled={startingChat}
-            className="btn btn-primary whitespace-nowrap"
-          >
+          <button onClick={handleStartChat} disabled={startingChat} className="btn btn-primary whitespace-nowrap">
             {startingChat ? 'Opening...' : '💬 Message'}
           </button>
         )}
@@ -141,39 +148,49 @@ export default function UserProfile() {
 
       {/* Availability Calendar */}
       <div className="card">
-        <h2 className="text-lg font-semibold mb-4">Availability</h2>
-        <div className="grid grid-cols-7 gap-1 text-center text-xs text-stone-400 mb-1">
-          {DAYS.map(d => <div key={d}>{d}</div>)}
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-lg font-semibold">Availability</h2>
+          <div className="flex items-center gap-3">
+            <button onClick={prevMonth} className="p-1 rounded hover:bg-stone-700 text-stone-300">‹</button>
+            <span className="text-sm font-medium w-36 text-center">{MONTH_NAMES[viewMonth]} {viewYear}</span>
+            <button onClick={nextMonth} className="p-1 rounded hover:bg-stone-700 text-stone-300">›</button>
+          </div>
         </div>
+
+        <div className="grid grid-cols-7 gap-1 text-center text-xs text-stone-400 mb-2">
+          {DAY_LABELS.map(d => <div key={d}>{d}</div>)}
+        </div>
+
         <div className="space-y-1">
           {weeks.map((week, wi) => (
             <div key={wi} className="grid grid-cols-7 gap-1">
               {week.map((day, di) => {
+                if (!day) return <div key={di} />
                 const key = day.toISOString().split('T')[0]
                 const status = availability[key]
                 const isPast = day < today
                 return (
                   <div
                     key={di}
-                    className={`aspect-square rounded flex flex-col items-center justify-center text-xs
+                    className={`aspect-square rounded flex items-center justify-center text-sm font-medium
                       ${isPast ? 'opacity-30' : ''}
                       ${status === 'available' ? 'bg-green-700 text-white' :
                         status === 'unavailable' ? 'bg-red-900 text-stone-400' :
-                        'bg-surface-700 text-stone-500'}
+                        'bg-stone-800 text-stone-500'}
                     `}
                   >
-                    <span className="text-xs leading-none">{MONTHS[day.getMonth()]}</span>
-                    <span className="font-semibold">{day.getDate()}</span>
+                    {day.getDate()}
                   </div>
                 )
               })}
             </div>
           ))}
         </div>
-        <div className="flex gap-4 mt-3 text-xs text-stone-400">
-          <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-green-700 inline-block"/> Available</span>
-          <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-red-900 inline-block"/> Unavailable</span>
-          <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-surface-700 inline-block"/> Not set</span>
+
+        <div className="flex gap-4 mt-4 text-xs text-stone-400">
+          <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-green-700 inline-block" /> Available</span>
+          <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-red-900 inline-block" /> Unavailable</span>
+          <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-stone-800 inline-block" /> Not set</span>
         </div>
       </div>
     </div>
