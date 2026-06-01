@@ -421,7 +421,7 @@ export default function Availability() {
             My Availability
           </h1>
           <p style={{ color: '#9c9080', fontSize: '0.85rem' }}>
-            Click a day to mark it available or unavailable. Changes save automatically.
+            Click a day to mark it available or unavailable. Changes save automatically. Showing the next 6 months.
           </p>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexShrink: 0 }}>

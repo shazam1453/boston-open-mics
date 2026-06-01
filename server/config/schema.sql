@@ -73,7 +73,7 @@ CREATE TABLE IF NOT EXISTS events (
     recurring_template_id INTEGER REFERENCES recurring_event_templates(id) ON DELETE SET NULL,
     is_cancelled BOOLEAN DEFAULT false,
     event_status VARCHAR(20) DEFAULT 'scheduled' CHECK (event_status IN ('scheduled', 'live', 'finished')),
-    signup_list_mode VARCHAR(20) DEFAULT 'signup_order' CHECK (signup_list_mode IN ('signup_order', 'random_order', 'bucket')),
+    signup_list_mode VARCHAR(20) DEFAULT 'signup_order' CHECK (signup_list_mode IN ('signup_order', 'random_order', 'bucket', 'booked_mic')),
     started_at TIMESTAMP,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
