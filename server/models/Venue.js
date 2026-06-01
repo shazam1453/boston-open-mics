@@ -23,7 +23,7 @@ class Venue {
     const result = await pool.query(query);
     return result.rows.map(venue => ({
       ...venue,
-      amenities: JSON.parse(venue.amenities || '[]')
+      amenities: Array.isArray(venue.amenities) ? venue.amenities : JSON.parse(venue.amenities || '[]')
     }));
   }
 
@@ -47,7 +47,7 @@ class Venue {
     const result = await pool.query(query, [ownerId]);
     return result.rows.map(venue => ({
       ...venue,
-      amenities: JSON.parse(venue.amenities || '[]')
+      amenities: Array.isArray(venue.amenities) ? venue.amenities : JSON.parse(venue.amenities || '[]')
     }));
   }
 

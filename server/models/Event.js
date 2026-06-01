@@ -38,7 +38,7 @@ class Event {
 
   static async findAll(filters = {}) {
     let query = `
-      SELECT e.*, v.name as venue_name, v.address as venue_address,
+      SELECT e.*, TO_CHAR(e.date, 'YYYY-MM-DD') as date, v.name as venue_name, v.address as venue_address,
              u.name as host_name,
              COUNT(s.id) as current_signups
       FROM events e
@@ -81,7 +81,7 @@ class Event {
 
   static async findById(id) {
     const query = `
-      SELECT e.*, v.name as venue_name, v.address as venue_address,
+      SELECT e.*, TO_CHAR(e.date, 'YYYY-MM-DD') as date, v.name as venue_name, v.address as venue_address,
              u.name as host_name, u.email as host_email,
              COUNT(DISTINCT s.id) as current_signups,
              json_agg(
@@ -119,6 +119,7 @@ class Event {
   static async findByHost(hostId) {
     const query = `
       SELECT e.*, v.name as venue_name,
+             TO_CHAR(e.date, 'YYYY-MM-DD') as date,
              COUNT(s.id) as current_signups
       FROM events e
       LEFT JOIN venues v ON e.venue_id = v.id
