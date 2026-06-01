@@ -12,11 +12,12 @@ router.get('/conversations', auth, async (req, res) => {
         (SELECT created_at FROM messages WHERE conversation_id = c.id ORDER BY created_at DESC LIMIT 1) as last_message_at,
         (SELECT COUNT(*) FROM messages m WHERE m.conversation_id = c.id AND m.created_at > cp.last_read_at AND m.sender_id != $1) as unread_count,
         (
-          SELECT json_agg(json_build_object('id', u.id, 'name', u.name, 'email', u.email))
+          SELECT row_to_json(u)
           FROM conversation_participants cp2
           JOIN users u ON cp2.user_id = u.id
           WHERE cp2.conversation_id = c.id AND u.id != $1
-        ) as other_participants
+          LIMIT 1
+        ) as other_user
       FROM conversations c
       JOIN conversation_participants cp ON c.id = cp.conversation_id
       WHERE cp.user_id = $1
@@ -44,15 +45,20 @@ router.post('/conversations', auth, async (req, res) => {
       LIMIT 1
     `, [req.user.id, other_user_id]);
 
+    const fetchConv = async (id) => {
+      const r = await pool.query(`
+        SELECT c.*,
+          (SELECT row_to_json(u)
+           FROM conversation_participants cp JOIN users u ON cp.user_id = u.id
+           WHERE cp.conversation_id = c.id AND u.id != $2
+           LIMIT 1) as other_user
+        FROM conversations c WHERE c.id = $1
+      `, [id, req.user.id]);
+      return r.rows[0];
+    };
+
     if (existing.rows.length > 0) {
-      const conv = await pool.query(`
-        SELECT c.*, (
-          SELECT json_agg(json_build_object('id', u.id, 'name', u.name))
-          FROM conversation_participants cp JOIN users u ON cp.user_id = u.id
-          WHERE cp.conversation_id = c.id
-        ) as participants FROM conversations c WHERE c.id = $1
-      `, [existing.rows[0].id]);
-      return res.json({ conversation: conv.rows[0] });
+      return res.json(await fetchConv(existing.rows[0].id));
     }
 
     // Create new direct conversation
@@ -67,7 +73,7 @@ router.post('/conversations', auth, async (req, res) => {
       [convId, req.user.id, other_user_id]
     );
 
-    res.status(201).json({ conversation: conv.rows[0] });
+    res.status(201).json(await fetchConv(convId));
   } catch (error) {
     console.error('Error creating conversation:', error);
     res.status(500).json({ message: 'Server error' });
