@@ -40,6 +40,8 @@ app.use('/api/users', require('./routes/users'));
 app.use('/api/recurring-events', require('./routes/recurringEvents'));
 app.use('/api/invitations', require('./routes/invitations'));
 app.use('/api/availability', require('./routes/availability'));
+app.use('/api/chat', require('./routes/chat'));
+app.use('/api/admin', require('./routes/admin'));
 
 // Health check
 app.get('/health', (req, res) => {

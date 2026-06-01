@@ -157,6 +157,45 @@ CREATE INDEX IF NOT EXISTS idx_availability_date ON user_availability(date);
 -- INSERT INTO venues (name, address, description, capacity, owner_id) VALUES
 -- ('The Comedy Studio', '1238 Massachusetts Ave, Cambridge, MA', 'Premier comedy venue in Harvard Square', 50, 2),
 -- ('Club Passim', '47 Palmer St, Cambridge, MA', 'Intimate folk music venue', 80, 1);
+-- Add role column to users
+ALTER TABLE users ADD COLUMN IF NOT EXISTS role VARCHAR(20) DEFAULT 'user' CHECK (role IN ('user', 'moderator', 'admin', 'super_admin'));
+
+-- Conversations table (direct messages and group chats)
+CREATE TABLE IF NOT EXISTS conversations (
+    id SERIAL PRIMARY KEY,
+    type VARCHAR(20) DEFAULT 'direct' CHECK (type IN ('direct', 'group')),
+    event_id INTEGER REFERENCES events(id) ON DELETE CASCADE,
+    name VARCHAR(255),
+    created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Conversation participants
+CREATE TABLE IF NOT EXISTS conversation_participants (
+    id SERIAL PRIMARY KEY,
+    conversation_id INTEGER REFERENCES conversations(id) ON DELETE CASCADE,
+    user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+    joined_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    last_read_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(conversation_id, user_id)
+);
+
+-- Messages
+CREATE TABLE IF NOT EXISTS messages (
+    id SERIAL PRIMARY KEY,
+    conversation_id INTEGER REFERENCES conversations(id) ON DELETE CASCADE,
+    sender_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    message_text TEXT NOT NULL,
+    read_at TIMESTAMP,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_messages_conversation ON messages(conversation_id);
+CREATE INDEX IF NOT EXISTS idx_participants_user ON conversation_participants(user_id);
+CREATE INDEX IF NOT EXISTS idx_participants_conversation ON conversation_participants(conversation_id);
+CREATE INDEX IF NOT EXISTS idx_conversations_event ON conversations(event_id);
+
 -- Password reset tokens
 CREATE TABLE IF NOT EXISTS password_reset_tokens (
     id SERIAL PRIMARY KEY,

@@ -2,6 +2,7 @@ const express = require('express');
 const { body, validationResult } = require('express-validator');
 const Event = require('../models/Event');
 const { auth, optionalAuth } = require('../middleware/auth');
+const pool = require('../config/database');
 
 const router = express.Router();
 
@@ -186,6 +187,97 @@ router.get('/host/:hostId', optionalAuth, async (req, res) => {
         res.json(events);
     } catch (error) {
         console.error('Get events by host error:', error);
+        res.status(500).json({ message: 'Server error' });
+    }
+});
+
+// Create group chat for event
+router.post('/:id/chat/create', auth, async (req, res) => {
+    try {
+        const existing = await pool.query(
+            "SELECT id FROM conversations WHERE event_id = $1 AND type = 'group'",
+            [req.params.id]
+        );
+        if (existing.rows.length > 0) {
+            return res.json({ conversation: existing.rows[0] });
+        }
+
+        const event = await Event.findById(req.params.id);
+        const conv = await pool.query(
+            "INSERT INTO conversations (type, event_id, name, created_by) VALUES ('group', $1, $2, $3) RETURNING *",
+            [req.params.id, event.title, req.user.id]
+        );
+        await pool.query(
+            'INSERT INTO conversation_participants (conversation_id, user_id) VALUES ($1, $2) ON CONFLICT DO NOTHING',
+            [conv.rows[0].id, req.user.id]
+        );
+        res.status(201).json({ message: 'Group chat created', conversation: conv.rows[0] });
+    } catch (error) {
+        console.error('Create group chat error:', error);
+        res.status(500).json({ message: 'Server error' });
+    }
+});
+
+// Get group chat for event
+router.get('/:id/chat', auth, async (req, res) => {
+    try {
+        const result = await pool.query(
+            "SELECT * FROM conversations WHERE event_id = $1 AND type = 'group' LIMIT 1",
+            [req.params.id]
+        );
+        res.json({ conversation: result.rows[0] || null });
+    } catch (error) {
+        res.status(500).json({ message: 'Server error' });
+    }
+});
+
+// Join group chat
+router.post('/:id/chat/join', auth, async (req, res) => {
+    try {
+        const conv = await pool.query(
+            "SELECT id FROM conversations WHERE event_id = $1 AND type = 'group'",
+            [req.params.id]
+        );
+        if (!conv.rows[0]) return res.status(404).json({ message: 'No group chat found' });
+
+        await pool.query(
+            'INSERT INTO conversation_participants (conversation_id, user_id) VALUES ($1, $2) ON CONFLICT DO NOTHING',
+            [conv.rows[0].id, req.user.id]
+        );
+        res.json({ message: 'Joined group chat', conversation: conv.rows[0] });
+    } catch (error) {
+        res.status(500).json({ message: 'Server error' });
+    }
+});
+
+// Leave group chat
+router.post('/:id/chat/leave', auth, async (req, res) => {
+    try {
+        const conv = await pool.query(
+            "SELECT id FROM conversations WHERE event_id = $1 AND type = 'group'",
+            [req.params.id]
+        );
+        if (!conv.rows[0]) return res.status(404).json({ message: 'No group chat found' });
+
+        await pool.query(
+            'DELETE FROM conversation_participants WHERE conversation_id = $1 AND user_id = $2',
+            [conv.rows[0].id, req.user.id]
+        );
+        res.json({ message: 'Left group chat' });
+    } catch (error) {
+        res.status(500).json({ message: 'Server error' });
+    }
+});
+
+// Delete group chat
+router.delete('/:id/chat/delete', auth, async (req, res) => {
+    try {
+        await pool.query(
+            "DELETE FROM conversations WHERE event_id = $1 AND type = 'group'",
+            [req.params.id]
+        );
+        res.json({ message: 'Group chat deleted' });
+    } catch (error) {
         res.status(500).json({ message: 'Server error' });
     }
 });
