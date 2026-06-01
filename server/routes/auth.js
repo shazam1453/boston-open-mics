@@ -161,4 +161,31 @@ router.put('/profile', auth, [
   }
 });
 
+// Change password
+router.put('/change-password', auth, [
+  body('currentPassword').exists(),
+  body('newPassword').isLength({ min: 6 })
+], async (req, res) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ errors: errors.array() });
+    }
+
+    const { currentPassword, newPassword } = req.body;
+
+    const userWithPassword = await User.findByEmail(req.user.email);
+    const isValid = await User.validatePassword(currentPassword, userWithPassword.password);
+    if (!isValid) {
+      return res.status(400).json({ message: 'Current password is incorrect' });
+    }
+
+    await User.updatePassword(req.user.id, newPassword);
+    res.json({ message: 'Password changed successfully' });
+  } catch (error) {
+    console.error('Change password error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
 module.exports = router;

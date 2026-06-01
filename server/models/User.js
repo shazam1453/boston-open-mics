@@ -71,6 +71,11 @@ class User {
     const result = await pool.query(query, values);
     return result.rows[0];
   }
+  static async updatePassword(id, newPassword) {
+    const hashedPassword = await bcrypt.hash(newPassword, 12);
+    const query = 'UPDATE users SET password = $1, updated_at = NOW() WHERE id = $2';
+    await pool.query(query, [hashedPassword, id]);
+  }
 }
 
 module.exports = User;
