@@ -21,7 +21,15 @@ api.interceptors.request.use((config) => {
 api.interceptors.response.use(
   (response) => response,
   (error) => {
-    // Log API errors for debugging
+    if (error.response?.status === 429) {
+      const retryAfter = error.response.headers['retry-after']
+      const seconds = retryAfter ? parseInt(retryAfter, 10) : 60
+      const minutes = Math.ceil(seconds / 60)
+      const msg = seconds < 60
+        ? `Too many requests. Please wait ${seconds} seconds before trying again.`
+        : `Too many requests. Please wait ${minutes} minute${minutes !== 1 ? 's' : ''} before trying again.`
+      showRateLimitAlert(msg)
+    }
     console.error('API Error:', {
       url: error.config?.url,
       method: error.config?.method,
@@ -31,6 +39,24 @@ api.interceptors.response.use(
     return Promise.reject(error)
   }
 )
+
+function showRateLimitAlert(message: string) {
+  const existing = document.getElementById('rate-limit-alert')
+  if (existing) existing.remove()
+
+  const el = document.createElement('div')
+  el.id = 'rate-limit-alert'
+  el.textContent = message
+  el.style.cssText = `
+    position: fixed; top: 20px; left: 50%; transform: translateX(-50%);
+    background: #ef4444; color: white; padding: 12px 24px;
+    border-radius: 8px; font-size: 14px; font-weight: 500;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.2); z-index: 9999;
+    max-width: 90vw; text-align: center;
+  `
+  document.body.appendChild(el)
+  setTimeout(() => el.remove(), 8000)
+}
 
 // Auth API
 export const authAPI = {
