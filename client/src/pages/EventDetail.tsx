@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { useParams } from 'react-router-dom'
+import { useParams, Link } from 'react-router-dom'
 import { eventsAPI, signupsAPI, chatAPI, usersAPI, invitationsAPI } from '../utils/api'
 import { useAuth } from '../hooks/useAuth'
 import { formatTime12Hour, formatDate, formatTimeOnly12Hour } from '../utils/dateTime'
@@ -1092,7 +1092,7 @@ export default function EventDetail() {
                                 </span>
                               </div>
                               <p className={`text-sm ${signup.is_finished ? 'text-gray-400' : 'text-gray-600'}`}>
-                                {signup.user_name} • {signup.performance_type}
+                                {signup.user_id ? <Link to={`/users/${signup.user_id}`} className="hover:underline">{signup.user_name}</Link> : (signup.user_name || 'Walk-in performer')} • {signup.performance_type}
                               </p>
                               {signup.notes && (
                                 <p className={`text-sm mt-1 ${signup.is_finished ? 'text-gray-400' : 'text-gray-500'}`}>
@@ -1203,7 +1203,7 @@ export default function EventDetail() {
                         <h3 className="text-lg font-semibold text-green-800 mb-2">🎤 Currently Performing</h3>
                         <div className="text-green-700">
                           <p className="font-medium">{currentPerformer.performance_name}</p>
-                          <p className="text-sm">{currentPerformer.user_name || 'Walk-in performer'} • {currentPerformer.performance_type}</p>
+                          <p className="text-sm">{currentPerformer.user_id ? <Link to={`/users/${currentPerformer.user_id}`} className="hover:underline">{currentPerformer.user_name}</Link> : 'Walk-in performer'} • {currentPerformer.performance_type}</p>
                         </div>
                         {sortedSignups.filter(s => !s.is_finished && !s.is_current_performer).length > 0 ? (
                           <button
@@ -1343,7 +1343,7 @@ export default function EventDetail() {
                               <div>
                                 <h4 className="font-semibold text-gray-500 line-through">{signup.performance_name}</h4>
                                 <p className="text-sm text-gray-400">
-                                  {signup.user_name || 'Walk-in performer'} • {signup.performance_type}
+                                  {signup.user_id ? <Link to={`/users/${signup.user_id}`} className="hover:underline">{signup.user_name}</Link> : 'Walk-in performer'} • {signup.performance_type}
                                 </p>
                               </div>
                               <button
@@ -1377,7 +1377,7 @@ export default function EventDetail() {
                       return currentPerformer ? (
                         <div className="p-6 bg-green-50 border border-green-200 rounded-lg text-center">
                           <h3 className="text-2xl font-bold text-green-800 mb-2">🎤 {currentPerformer.performance_name}</h3>
-                          <p className="text-green-700">{currentPerformer.user_name || 'Walk-in performer'}</p>
+                          <p className="text-green-700">{currentPerformer.user_id ? <Link to={`/users/${currentPerformer.user_id}`} className="hover:underline">{currentPerformer.user_name}</Link> : 'Walk-in performer'}</p>
                           <p className="text-sm text-green-600 mt-1">{currentPerformer.performance_type}</p>
                         </div>
                       ) : (
@@ -1405,7 +1405,7 @@ export default function EventDetail() {
                               {signup.performance_name}
                             </h4>
                             <p className={`text-sm ${signup.is_finished ? 'text-gray-400' : 'text-gray-600'}`}>
-                              {signup.user_name || 'Walk-in performer'} • {signup.performance_type}
+                              {signup.user_id ? <Link to={`/users/${signup.user_id}`} className="hover:underline">{signup.user_name}</Link> : 'Walk-in performer'} • {signup.performance_type}
                             </p>
                             {signup.notes && (
                               <p className={`text-sm mt-1 ${signup.is_finished ? 'text-gray-400' : 'text-gray-500'}`}>
@@ -1521,7 +1521,7 @@ export default function EventDetail() {
                                 {signup.performance_name}
                               </h3>
                               <p className={`text-sm ${signup.is_finished ? 'text-gray-400' : 'text-gray-600'}`}>
-                                {signup.user_name || 'Walk-in performer'} • {signup.performance_type}
+                                {signup.user_id ? <Link to={`/users/${signup.user_id}`} className="hover:underline">{signup.user_name}</Link> : 'Walk-in performer'} • {signup.performance_type}
                               </p>
                               {signup.notes && (
                                 <p className={`text-sm mt-1 ${signup.is_finished ? 'text-gray-400' : 'text-gray-500'}`}>

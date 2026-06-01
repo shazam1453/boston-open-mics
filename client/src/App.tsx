@@ -12,6 +12,7 @@ import Admin from './pages/Admin'
 import ResetPasswordPage from './pages/ResetPasswordPage'
 import Chat from './pages/Chat'
 import Availability from './pages/Availability'
+import UserProfile from './pages/UserProfile'
 
 function App() {
   return (
@@ -29,6 +30,7 @@ function App() {
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/admin" element={<Admin />} />
           <Route path="/availability" element={<Availability />} />
+          <Route path="/users/:id" element={<UserProfile />} />
         </Routes>
       </Layout>
     </AuthProvider>

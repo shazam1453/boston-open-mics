@@ -33,18 +33,39 @@ router.get('/:id', optionalAuth, async (req, res) => {
       return res.status(404).json({ message: 'User not found' });
     }
 
-    // Return only public profile information
     const publicProfile = {
       id: user.id,
       name: user.name,
       performer_type: user.performer_type,
       bio: user.bio,
+      instagram_handle: user.instagram_handle,
+      twitter_handle: user.twitter_handle,
+      tiktok_handle: user.tiktok_handle,
+      youtube_handle: user.youtube_handle,
+      website_url: user.website_url,
       created_at: user.created_at
     };
 
     res.json(publicProfile);
   } catch (error) {
     console.error('Get user error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// Get user availability (public)
+router.get('/:id/availability', optionalAuth, async (req, res) => {
+  try {
+    const result = await pool.query(
+      'SELECT date, status FROM user_availability WHERE user_id = $1 ORDER BY date',
+      [req.params.id]
+    );
+    const availability = {};
+    result.rows.forEach(row => {
+      availability[row.date.toISOString().split('T')[0]] = row.status;
+    });
+    res.json({ availability });
+  } catch (error) {
     res.status(500).json({ message: 'Server error' });
   }
 });

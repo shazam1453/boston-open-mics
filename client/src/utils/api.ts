@@ -94,6 +94,8 @@ export const authAPI = {
 // Users API
 export const usersAPI = {
   search: (query: string) => api.get<User[]>(`/users/search?q=${encodeURIComponent(query)}`),
+  getById: (id: string | number) => api.get<User>(`/users/${id}`),
+  getAvailability: (id: string | number) => api.get<{ availability: Record<string, 'available' | 'unavailable'> }>(`/users/${id}/availability`),
 }
 
 // Admin API

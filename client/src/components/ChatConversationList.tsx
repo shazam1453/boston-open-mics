@@ -1,4 +1,5 @@
 // Removed date-fns to avoid SES Temporal API conflicts
+import { useNavigate } from 'react-router-dom'
 
 interface ChatConversationListProps {
   conversations: any[]
@@ -13,7 +14,8 @@ export default function ChatConversationList({
   onSelectConversation,
   currentUserId
 }: ChatConversationListProps) {
-  
+  const navigate = useNavigate()
+
   const formatLastMessageTime = (timestamp: string) => {
     try {
       const date = new Date(timestamp)
@@ -54,6 +56,7 @@ export default function ChatConversationList({
           <div
             key={conversation.id}
             onClick={() => onSelectConversation(conversation)}
+            onDoubleClick={() => !conversation.type?.includes('group') && otherUser?.id && navigate(`/users/${otherUser.id}`)}
             className={`p-4 cursor-pointer hover:bg-gray-50 transition-colors ${
               isSelected ? 'bg-blue-50 border-r-2 border-blue-500' : ''
             }`}

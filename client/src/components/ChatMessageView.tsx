@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { chatAPI } from '../utils/api'
 // Removed date-fns to avoid SES Temporal API conflicts
 
@@ -23,6 +24,7 @@ export default function ChatMessageView({
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const messagesContainerRef = useRef<HTMLDivElement>(null)
 
+  const navigate = useNavigate()
   const otherUser = conversation.other_user
   const isGroupChat = conversation.type === 'group'
 
@@ -250,10 +252,12 @@ export default function ChatMessageView({
                   </div>
                 )}
                 <div className={`flex ${isFromCurrentUser ? 'justify-end' : 'justify-start'}`}>
-                  <div className={`max-w-xs lg:max-w-md px-4 py-2 rounded-lg ${
-                    isFromCurrentUser 
-                      ? 'bg-blue-500 text-white' 
-                      : 'bg-white text-gray-900 border border-gray-200'
+                  <div
+                    onDoubleClick={() => !isFromCurrentUser && message.sender_id && navigate(`/users/${message.sender_id}`)}
+                    className={`max-w-xs lg:max-w-md px-4 py-2 rounded-lg ${
+                    isFromCurrentUser
+                      ? 'bg-blue-500 text-white'
+                      : 'bg-white text-gray-900 border border-gray-200 cursor-pointer'
                   }`}>
                     <p className="text-sm">{message.message_text}</p>
                     <div className={`text-xs mt-1 ${
