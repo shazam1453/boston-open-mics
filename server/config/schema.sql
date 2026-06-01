@@ -74,7 +74,6 @@ CREATE TABLE IF NOT EXISTS events (
     is_cancelled BOOLEAN DEFAULT false,
     event_status VARCHAR(20) DEFAULT 'scheduled' CHECK (event_status IN ('scheduled', 'live', 'finished')),
     signup_list_mode VARCHAR(20) DEFAULT 'signup_order' CHECK (signup_list_mode IN ('signup_order', 'random_order', 'bucket')),
-    current_performer_id INTEGER REFERENCES signups(id) ON DELETE SET NULL,
     started_at TIMESTAMP,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -122,6 +121,9 @@ CREATE TABLE IF NOT EXISTS invitations (
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     UNIQUE(event_id, invitee_id, type)
 );
+
+-- Add current_performer_id after signups table exists
+ALTER TABLE events ADD COLUMN IF NOT EXISTS current_performer_id INTEGER REFERENCES signups(id) ON DELETE SET NULL;
 
 -- Indexes for better performance
 CREATE INDEX IF NOT EXISTS idx_events_date ON events(date);
