@@ -43,13 +43,13 @@ export const formatDate = (dateString: string): string => {
 }
 
 export const formatTimeOnly12Hour = (dateTimeString: string): string => {
-  const date = new Date(dateTimeString)
-
-  // Display in UTC to match the time as entered (times are stored as UTC)
-  return date.toLocaleTimeString('en-US', {
-    hour: 'numeric',
-    minute: '2-digit',
-    hour12: true,
-    timeZone: 'UTC'
-  })
+  // Extract the time portion directly from the ISO string to avoid timezone conversion
+  // e.g. "2026-06-22T20:00:00.000Z" -> parse hours/minutes as stored
+  const timePart = dateTimeString.includes('T') ? dateTimeString.split('T')[1] : dateTimeString
+  const [hourStr, minuteStr] = timePart.split(':')
+  const hours = parseInt(hourStr)
+  const minutes = parseInt(minuteStr)
+  const ampm = hours >= 12 ? 'PM' : 'AM'
+  const displayHour = hours % 12 || 12
+  return `${displayHour}:${String(minutes).padStart(2, '0')} ${ampm}`
 }

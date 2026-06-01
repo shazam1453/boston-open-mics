@@ -452,12 +452,12 @@ export default function Events() {
                   </div>
                   {signupOpens && signupOpens > now && (
                     <div className="text-yellow-600">
-                      📅 Sign-ups open: {signupOpens.toLocaleDateString('en-US', { timeZone: 'UTC' })} at {formatTimeOnly12Hour(event.signup_opens!)}
+                      📅 Sign-ups open: {event.signup_opens!.split('T')[0]} at {formatTimeOnly12Hour(event.signup_opens!)}
                     </div>
                   )}
                   {signupDeadline && signupDeadline > now && (
                     <div className="text-orange-600">
-                      ⏰ Sign-up deadline: {signupDeadline.toLocaleDateString('en-US', { timeZone: 'UTC' })} at {formatTimeOnly12Hour(event.signup_deadline!)}
+                      ⏰ Sign-up deadline: {event.signup_deadline!.split('T')[0]} at {formatTimeOnly12Hour(event.signup_deadline!)}
                     </div>
                   )}
                 </div>
