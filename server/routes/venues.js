@@ -35,7 +35,7 @@ router.post('/', auth, [
   body('name').trim().isLength({ min: 1 }),
   body('address').trim().isLength({ min: 1 }),
   body('phone').optional().trim(),
-  body('email').optional().isEmail().normalizeEmail(),
+  body('email').optional({ checkFalsy: true }).isEmail().normalizeEmail(),
   body('description').optional().trim(),
   body('capacity').optional().isInt({ min: 1 }),
   body('amenities').optional().isArray()
@@ -74,7 +74,7 @@ router.put('/:id', auth, [
   body('name').optional().trim().isLength({ min: 1 }),
   body('address').optional().trim().isLength({ min: 1 }),
   body('phone').optional().trim(),
-  body('email').optional().isEmail().normalizeEmail(),
+  body('email').optional({ checkFalsy: true }).isEmail().normalizeEmail(),
   body('description').optional().trim(),
   body('capacity').optional().isInt({ min: 1 }),
   body('amenities').optional().isArray()
