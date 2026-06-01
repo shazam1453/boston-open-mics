@@ -92,7 +92,7 @@ class Event {
                )
              ) FILTER (WHERE ec.user_id IS NOT NULL) as cohosts,
              json_agg(
-               DISTINCT json_build_object(
+               json_build_object(
                  'id', s.id,
                  'user_id', s.user_id,
                  'user_name', su.name,
