@@ -12,10 +12,10 @@
   status = 200
 
 [context.production.environment]
-  VITE_API_URL = "https://alaz4y94pg.execute-api.us-east-2.amazonaws.com/prod/api"
+  VITE_API_URL = "https://api.bostonshowtime.com/api"
 
 [context.deploy-preview.environment]
-  VITE_API_URL = "https://alaz4y94pg.execute-api.us-east-2.amazonaws.com/prod/api"
+  VITE_API_URL = "https://api.bostonshowtime.com/api"
 
 [context.branch-deploy.environment]
-  VITE_API_URL = "https://alaz4y94pg.execute-api.us-east-2.amazonaws.com/prod/api"
+  VITE_API_URL = "https://api.bostonshowtime.com/api"
