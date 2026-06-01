@@ -74,5 +74,13 @@
 .border-gray-200 { border-color: #3a352b !important; }
 .border-gray-300 { border-color: #4a4438 !important; }
 
+input, textarea, select {
+  background-color: #242018;
+  color: #e8e0d4;
+}
+input::placeholder, textarea::placeholder {
+  color: #7a7060;
+}
+
 .text-primary-600       { color: #f59e0b !important; }
 .hover\:text-primary-600:hover { color: #fbbf24 !important; }

@@ -2,7 +2,28 @@ const express = require('express');
 const User = require('../models/User');
 const { auth, optionalAuth } = require('../middleware/auth');
 
+const pool = require('../config/database');
+
 const router = express.Router();
+
+// Search users by name or email
+router.get('/search', auth, async (req, res) => {
+  const { q } = req.query;
+  if (!q || q.length < 2) return res.json([]);
+
+  try {
+    const result = await pool.query(
+      `SELECT id, name, email, performer_type, bio FROM users
+       WHERE name ILIKE $1 OR email ILIKE $1
+       LIMIT 20`,
+      [`%${q}%`]
+    );
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Search error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
 
 // Get user by ID (public profile info only)
 router.get('/:id', optionalAuth, async (req, res) => {
