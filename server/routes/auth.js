@@ -125,7 +125,7 @@ router.put('/profile', auth, [
   body('twitterHandle').optional().trim(),
   body('tiktokHandle').optional().trim(),
   body('youtubeHandle').optional().trim(),
-  body('websiteUrl').optional().isURL().withMessage('Website must be a valid URL')
+  body('websiteUrl').optional({ checkFalsy: true }).isURL().withMessage('Website must be a valid URL')
 ], async (req, res) => {
   try {
     const errors = validationResult(req);
