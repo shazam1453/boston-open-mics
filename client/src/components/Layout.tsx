@@ -41,6 +41,26 @@ export default function Layout({ children }: LayoutProps) {
                 >
                   Events
                 </Link>
+                <Link
+                  to="/performers"
+                  className="px-3 py-2 text-sm font-medium rounded transition-colors"
+                  style={{ color: isActive('/performers') ? '#f59e0b' : '#9c9080' }}
+                  onMouseEnter={e => { if (!isActive('/performers')) (e.target as HTMLElement).style.color = '#e8e0d4' }}
+                  onMouseLeave={e => { if (!isActive('/performers')) (e.target as HTMLElement).style.color = '#9c9080' }}
+                >
+                  Performers
+                </Link>
+                {user && (
+                  <Link
+                    to="/board"
+                    className="px-3 py-2 text-sm font-medium rounded transition-colors"
+                    style={{ color: location.pathname.startsWith('/board') ? '#f59e0b' : '#9c9080' }}
+                    onMouseEnter={e => { if (!location.pathname.startsWith('/board')) (e.target as HTMLElement).style.color = '#e8e0d4' }}
+                    onMouseLeave={e => { if (!location.pathname.startsWith('/board')) (e.target as HTMLElement).style.color = '#9c9080' }}
+                  >
+                    The Board
+                  </Link>
+                )}
                 {user && (
                   <Link
                     to="/chat"
@@ -102,6 +122,12 @@ export default function Layout({ children }: LayoutProps) {
           <div className="sm:hidden py-2 flex gap-1" style={{ borderTop: '1px solid #2e2a22' }}>
             <Link to="/events" className="px-3 py-2 text-sm font-medium rounded transition-colors"
                   style={{ color: '#9c9080' }}>📅 Events</Link>
+            <Link to="/performers" className="px-3 py-2 text-sm font-medium rounded transition-colors"
+                  style={{ color: '#9c9080' }}>🎤 Performers</Link>
+            {user && (
+              <Link to="/board" className="px-3 py-2 text-sm font-medium rounded transition-colors"
+                    style={{ color: '#9c9080' }}>📋 The Board</Link>
+            )}
             {user && (
               <Link to="/chat" className="px-3 py-2 text-sm font-medium rounded transition-colors"
                     style={{ color: '#9c9080' }}>💬 Messages</Link>

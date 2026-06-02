@@ -6,15 +6,16 @@ const pool = require('../config/database');
 
 const router = express.Router();
 
-// Search users by name or email
-router.get('/search', auth, async (req, res) => {
+// Search users by name or performer_type (public)
+router.get('/search', optionalAuth, async (req, res) => {
   const { q } = req.query;
   if (!q || q.length < 2) return res.json([]);
 
   try {
     const result = await pool.query(
-      `SELECT id, name, email, performer_type, bio FROM users
-       WHERE name ILIKE $1 OR email ILIKE $1
+      `SELECT id, name, performer_type, bio, slug FROM users
+       WHERE name ILIKE $1 OR performer_type ILIKE $1
+       ORDER BY name
        LIMIT 20`,
       [`%${q}%`]
     );
@@ -25,16 +26,17 @@ router.get('/search', auth, async (req, res) => {
   }
 });
 
-// Get user by ID (public profile info only)
-router.get('/:id', optionalAuth, async (req, res) => {
+// Get user by slug (public profile info only)
+router.get('/:slug', optionalAuth, async (req, res) => {
   try {
-    const user = await User.findById(req.params.id);
+    const user = await User.findBySlug(req.params.slug);
     if (!user) {
       return res.status(404).json({ message: 'User not found' });
     }
 
     const publicProfile = {
       id: user.id,
+      slug: user.slug,
       name: user.name,
       performer_type: user.performer_type,
       bio: user.bio,
@@ -53,12 +55,15 @@ router.get('/:id', optionalAuth, async (req, res) => {
   }
 });
 
-// Get user availability (public)
-router.get('/:id/availability', optionalAuth, async (req, res) => {
+// Get user availability by slug (public)
+router.get('/:slug/availability', optionalAuth, async (req, res) => {
   try {
+    const user = await User.findBySlug(req.params.slug);
+    if (!user) return res.status(404).json({ message: 'User not found' });
+
     const result = await pool.query(
       'SELECT date, status FROM user_availability WHERE user_id = $1 ORDER BY date',
-      [req.params.id]
+      [user.id]
     );
     const availability = {};
     result.rows.forEach(row => {

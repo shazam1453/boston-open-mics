@@ -254,7 +254,7 @@ export default function ChatMessageView({
                 <div className={`flex ${isFromCurrentUser ? 'justify-end' : 'justify-start'} items-end gap-2`}>
                   {!isFromCurrentUser && (
                     <button
-                      onClick={() => message.sender_id && navigate(`/users/${message.sender_id}`)}
+                      onClick={() => message.sender_id && navigate(`/users/${message.sender_slug}`)}
                       className="w-7 h-7 rounded-full bg-primary-500 flex items-center justify-center text-xs font-bold text-gray-900 flex-shrink-0 hover:opacity-80 transition-opacity"
                       title={message.sender_name}
                     >
@@ -262,7 +262,7 @@ export default function ChatMessageView({
                     </button>
                   )}
                   <div
-                    onDoubleClick={() => !isFromCurrentUser && message.sender_id && navigate(`/users/${message.sender_id}`)}
+                    onDoubleClick={() => !isFromCurrentUser && message.sender_id && navigate(`/users/${message.sender_slug}`)}
                     className={`max-w-xs lg:max-w-md px-4 py-2 rounded-lg ${
                       isFromCurrentUser
                         ? 'bg-blue-500 text-white'
@@ -270,7 +270,7 @@ export default function ChatMessageView({
                     }`}>
                     {!isFromCurrentUser && (
                       <button
-                        onClick={() => message.sender_id && navigate(`/users/${message.sender_id}`)}
+                        onClick={() => message.sender_id && navigate(`/users/${message.sender_slug}`)}
                         className="text-xs font-semibold text-primary-500 mb-1 hover:underline block"
                       >
                         {message.sender_name}

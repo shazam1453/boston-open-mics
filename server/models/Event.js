@@ -86,12 +86,12 @@ class Event {
              v.name as venue_name, v.address as venue_address,
              u.name as host_name, u.email as host_email,
              (SELECT COUNT(*) FROM signups WHERE event_id = e.id AND status = 'confirmed') as current_signups,
-             (SELECT json_agg(json_build_object('user_id', ec.user_id, 'user_name', cu.name, 'user_email', cu.email))
+             (SELECT json_agg(json_build_object('user_id', ec.user_id, 'user_name', cu.name, 'user_email', cu.email, 'user_slug', cu.slug))
               FROM event_cohosts ec JOIN users cu ON ec.user_id = cu.id
               WHERE ec.event_id = e.id) as cohosts,
              (SELECT json_agg(sq ORDER BY sq.signup_order)
               FROM (
-                SELECT s.id, s.user_id, su.name as user_name, s.performance_name,
+                SELECT s.id, s.user_id, su.name as user_name, su.slug as user_slug, s.performance_name,
                        s.performance_type, s.status, s.performance_order as signup_order,
                        s.notes, s.is_finished, s.is_current_performer, s.created_at as signed_up_at
                 FROM signups s
@@ -208,6 +208,7 @@ class Event {
                    'id', s.id,
                    'user_id', s.user_id,
                    'user_name', u.name,
+                   'user_slug', u.slug,
                    'performance_status', s.performance_status,
                    'signup_order', s.signup_order,
                    'signed_up_at', s.signed_up_at
@@ -265,6 +266,7 @@ class Event {
                    'id', s.id,
                    'user_id', s.user_id,
                    'user_name', u.name,
+                   'user_slug', u.slug,
                    'performance_status', s.performance_status,
                    'signup_order', s.signup_order,
                    'signed_up_at', s.signed_up_at
@@ -321,7 +323,8 @@ class Event {
                  json_build_object(
                    'user_id', ec.user_id,
                    'user_name', u.name,
-                   'user_email', u.email
+                   'user_email', u.email,
+                   'user_slug', u.slug
                  )
                ) FILTER (WHERE ec.user_id IS NOT NULL) as cohosts
         FROM events e
@@ -365,7 +368,8 @@ class Event {
                  json_build_object(
                    'user_id', ec.user_id,
                    'user_name', u.name,
-                   'user_email', u.email
+                   'user_email', u.email,
+                   'user_slug', u.slug
                  )
                ) FILTER (WHERE ec.user_id IS NOT NULL) as cohosts
         FROM events e

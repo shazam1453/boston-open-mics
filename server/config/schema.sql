@@ -14,9 +14,11 @@ CREATE TABLE IF NOT EXISTS users (
     tiktok_handle VARCHAR(100),
     youtube_handle VARCHAR(100),
     website_url VARCHAR(255),
+    slug VARCHAR(100) UNIQUE,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
+ALTER TABLE users ADD COLUMN IF NOT EXISTS slug VARCHAR(100) UNIQUE;
 
 -- Venues table
 CREATE TABLE IF NOT EXISTS venues (
@@ -208,3 +210,32 @@ CREATE TABLE IF NOT EXISTS password_reset_tokens (
 
 CREATE INDEX IF NOT EXISTS idx_reset_tokens_token ON password_reset_tokens(token);
 CREATE INDEX IF NOT EXISTS idx_reset_tokens_user ON password_reset_tokens(user_id);
+
+-- Message board threads
+CREATE TABLE IF NOT EXISTS board_threads (
+    id SERIAL PRIMARY KEY,
+    title VARCHAR(255) NOT NULL,
+    body TEXT NOT NULL,
+    category VARCHAR(50) NOT NULL DEFAULT 'general' CHECK (category IN ('general', 'shows', 'gear', 'intros', 'other')),
+    author_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    is_pinned BOOLEAN DEFAULT false,
+    is_locked BOOLEAN DEFAULT false,
+    reply_count INTEGER DEFAULT 0,
+    last_reply_at TIMESTAMP,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Message board replies
+CREATE TABLE IF NOT EXISTS board_replies (
+    id SERIAL PRIMARY KEY,
+    thread_id INTEGER REFERENCES board_threads(id) ON DELETE CASCADE,
+    author_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    body TEXT NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_board_replies_thread ON board_replies(thread_id);
+CREATE INDEX IF NOT EXISTS idx_board_threads_category ON board_threads(category);
+CREATE INDEX IF NOT EXISTS idx_board_threads_last_reply ON board_threads(last_reply_at DESC NULLS LAST);

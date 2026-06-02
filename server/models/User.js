@@ -1,25 +1,39 @@
 const pool = require('../config/database');
 const bcrypt = require('bcryptjs');
 
+async function generateSlug(name) {
+  const base = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'user';
+  let slug = base;
+  let n = 2;
+  while (true) {
+    const conflict = await pool.query('SELECT id FROM users WHERE slug = $1', [slug]);
+    if (conflict.rows.length === 0) break;
+    slug = base + '-' + n++;
+  }
+  return slug;
+}
+
 class User {
   static async create({ email, password, name, phone, performerType, bio, socialMedia = {} }) {
     const hashedPassword = await bcrypt.hash(password, 12);
-    
+    const slug = await generateSlug(name);
+
     const query = `
-      INSERT INTO users (email, password, name, phone, performer_type, bio, 
-                        instagram_handle, twitter_handle, tiktok_handle, youtube_handle, website_url, created_at)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, NOW())
-      RETURNING id, email, name, phone, performer_type, bio, 
-                instagram_handle, twitter_handle, tiktok_handle, youtube_handle, website_url, created_at
+      INSERT INTO users (email, password, name, phone, performer_type, bio,
+                        instagram_handle, twitter_handle, tiktok_handle, youtube_handle, website_url, slug, created_at)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, NOW())
+      RETURNING id, email, name, phone, performer_type, bio,
+                instagram_handle, twitter_handle, tiktok_handle, youtube_handle, website_url, slug, created_at
     `;
-    
+
     const values = [
       email, hashedPassword, name, phone, performerType, bio,
       socialMedia.instagram || null,
       socialMedia.twitter || null,
       socialMedia.tiktok || null,
       socialMedia.youtube || null,
-      socialMedia.website || null
+      socialMedia.website || null,
+      slug
     ];
     const result = await pool.query(query, values);
     return result.rows[0];
@@ -33,11 +47,21 @@ class User {
 
   static async findById(id) {
     const query = `
-      SELECT id, email, name, phone, performer_type, bio, 
-             instagram_handle, twitter_handle, tiktok_handle, youtube_handle, website_url, created_at 
+      SELECT id, email, name, phone, performer_type, bio, role,
+             instagram_handle, twitter_handle, tiktok_handle, youtube_handle, website_url, slug, created_at
       FROM users WHERE id = $1
     `;
     const result = await pool.query(query, [id]);
+    return result.rows[0];
+  }
+
+  static async findBySlug(slug) {
+    const query = `
+      SELECT id, email, name, phone, performer_type, bio, role,
+             instagram_handle, twitter_handle, tiktok_handle, youtube_handle, website_url, slug, created_at
+      FROM users WHERE slug = $1
+    `;
+    const result = await pool.query(query, [slug]);
     return result.rows[0];
   }
 
@@ -64,8 +88,8 @@ class User {
     const query = `
       UPDATE users SET ${fields.join(', ')}, updated_at = NOW()
       WHERE id = $${paramCount}
-      RETURNING id, email, name, phone, performer_type, bio, 
-                instagram_handle, twitter_handle, tiktok_handle, youtube_handle, website_url, updated_at
+      RETURNING id, email, name, phone, performer_type, bio,
+                instagram_handle, twitter_handle, tiktok_handle, youtube_handle, website_url, slug, updated_at
     `;
 
     const result = await pool.query(query, values);

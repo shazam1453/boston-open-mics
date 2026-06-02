@@ -94,7 +94,7 @@ router.get('/conversations/:id/messages', auth, async (req, res) => {
 
     const limit = parseInt(req.query.limit) || 50;
     const result = await pool.query(`
-      SELECT m.*, m.created_at as timestamp, u.name as sender_name, u.email as sender_email
+      SELECT m.*, m.created_at as timestamp, u.name as sender_name, u.email as sender_email, u.slug as sender_slug
       FROM messages m
       JOIN users u ON m.sender_id = u.id
       WHERE m.conversation_id = $1

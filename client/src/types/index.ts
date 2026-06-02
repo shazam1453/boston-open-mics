@@ -83,6 +83,7 @@ export interface Signup {
   event_date?: string
   venue_name?: string
   user_name?: string
+  user_slug?: string
 }
 
 export interface AuthResponse {

@@ -42,6 +42,7 @@ app.use('/api/invitations', require('./routes/invitations'));
 app.use('/api/availability', require('./routes/availability'));
 app.use('/api/chat', require('./routes/chat'));
 app.use('/api/admin', require('./routes/admin'));
+app.use('/api/board', require('./routes/board'));
 
 // Health check
 app.get('/health', (req, res) => {

@@ -94,8 +94,8 @@ export const authAPI = {
 // Users API
 export const usersAPI = {
   search: (query: string) => api.get<User[]>(`/users/search?q=${encodeURIComponent(query)}`),
-  getById: (id: string | number) => api.get<User>(`/users/${id}`),
-  getAvailability: (id: string | number) => api.get<{ availability: Record<string, 'available' | 'unavailable'> }>(`/users/${id}/availability`),
+  getBySlug: (slug: string) => api.get<User>(`/users/${slug}`),
+  getAvailability: (slug: string) => api.get<{ availability: Record<string, 'available' | 'unavailable'> }>(`/users/${slug}/availability`),
 }
 
 // Admin API
@@ -342,6 +342,30 @@ export const availabilityAPI = {
   get: () => api.get<{ availability: Record<string, 'available' | 'unavailable'> }>('/availability'),
   save: (availability: Record<string, 'available' | 'unavailable'>) =>
     api.put<{ message: string; count: number }>('/availability', { availability }),
+}
+
+// Board API
+export const boardAPI = {
+  listThreads: (category?: string) =>
+    api.get<any[]>(`/board/threads${category ? `?category=${category}` : ''}`),
+  getThread: (id: string | number) =>
+    api.get<{ thread: any; replies: any[] }>(`/board/threads/${id}`),
+  createThread: (data: { title: string; body: string; category: string }) =>
+    api.post<any>('/board/threads', data),
+  editThread: (id: string | number, data: { title: string; body: string }) =>
+    api.put<any>(`/board/threads/${id}`, data),
+  deleteThread: (id: string | number) =>
+    api.delete<any>(`/board/threads/${id}`),
+  pinThread: (id: string | number) =>
+    api.put<any>(`/board/threads/${id}/pin`, {}),
+  lockThread: (id: string | number) =>
+    api.put<any>(`/board/threads/${id}/lock`, {}),
+  createReply: (threadId: string | number, body: string) =>
+    api.post<any>(`/board/threads/${threadId}/replies`, { body }),
+  editReply: (replyId: string | number, body: string) =>
+    api.put<any>(`/board/replies/${replyId}`, { body }),
+  deleteReply: (replyId: string | number) =>
+    api.delete<any>(`/board/replies/${replyId}`),
 }
 
 export default api

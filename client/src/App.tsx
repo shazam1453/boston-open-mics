@@ -13,6 +13,10 @@ import ResetPasswordPage from './pages/ResetPasswordPage'
 import Chat from './pages/Chat'
 import Availability from './pages/Availability'
 import UserProfile from './pages/UserProfile'
+import PerformerSearch from './pages/PerformerSearch'
+import Board from './pages/Board'
+import ThreadDetail from './pages/ThreadDetail'
+import NewThread from './pages/NewThread'
 
 function App() {
   return (
@@ -30,7 +34,11 @@ function App() {
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/admin" element={<Admin />} />
           <Route path="/availability" element={<Availability />} />
-          <Route path="/users/:id" element={<UserProfile />} />
+          <Route path="/users/:slug" element={<UserProfile />} />
+          <Route path="/performers" element={<PerformerSearch />} />
+          <Route path="/board" element={<Board />} />
+          <Route path="/board/new" element={<NewThread />} />
+          <Route path="/board/:id" element={<ThreadDetail />} />
         </Routes>
       </Layout>
     </AuthProvider>

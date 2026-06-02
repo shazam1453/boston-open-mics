@@ -24,7 +24,7 @@ function getCalendarWeeks(year: number, month: number): (Date | null)[][] {
 }
 
 export default function UserProfile() {
-  const { id } = useParams<{ id: string }>()
+  const { slug } = useParams<{ slug: string }>()
   const navigate = useNavigate()
   const { user: currentUser } = useAuth()
   const [profile, setProfile] = useState<any>(null)
@@ -39,21 +39,21 @@ export default function UserProfile() {
   const [viewMonth, setViewMonth] = useState(today.getMonth())
 
   useEffect(() => {
-    if (!id) return
+    if (!slug) return
     Promise.all([
-      usersAPI.getById(id),
-      usersAPI.getAvailability(id)
+      usersAPI.getBySlug(slug),
+      usersAPI.getAvailability(slug)
     ]).then(([profileRes, availRes]) => {
       setProfile(profileRes.data)
       setAvailability(availRes.data.availability || {})
     }).catch(() => setError('User not found')).finally(() => setLoading(false))
-  }, [id])
+  }, [slug])
 
   const handleStartChat = async () => {
     if (!currentUser) { navigate('/login'); return }
     setStartingChat(true)
     try {
-      await chatAPI.startConversation(id!)
+      await chatAPI.startConversation(profile.id)
       navigate('/chat')
     } catch {
       setError('Failed to start conversation')
