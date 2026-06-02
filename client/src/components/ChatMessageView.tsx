@@ -251,14 +251,31 @@ export default function ChatMessageView({
                     {formatMessageTime(message.timestamp)}
                   </div>
                 )}
-                <div className={`flex ${isFromCurrentUser ? 'justify-end' : 'justify-start'}`}>
+                <div className={`flex ${isFromCurrentUser ? 'justify-end' : 'justify-start'} items-end gap-2`}>
+                  {!isFromCurrentUser && (
+                    <button
+                      onClick={() => message.sender_id && navigate(`/users/${message.sender_id}`)}
+                      className="w-7 h-7 rounded-full bg-primary-500 flex items-center justify-center text-xs font-bold text-gray-900 flex-shrink-0 hover:opacity-80 transition-opacity"
+                      title={message.sender_name}
+                    >
+                      {message.sender_name?.charAt(0)?.toUpperCase() || '?'}
+                    </button>
+                  )}
                   <div
                     onDoubleClick={() => !isFromCurrentUser && message.sender_id && navigate(`/users/${message.sender_id}`)}
                     className={`max-w-xs lg:max-w-md px-4 py-2 rounded-lg ${
-                    isFromCurrentUser
-                      ? 'bg-blue-500 text-white'
-                      : 'bg-white text-gray-900 border border-gray-200 cursor-pointer'
-                  }`}>
+                      isFromCurrentUser
+                        ? 'bg-blue-500 text-white'
+                        : 'bg-white text-gray-900 border border-gray-200'
+                    }`}>
+                    {!isFromCurrentUser && (
+                      <button
+                        onClick={() => message.sender_id && navigate(`/users/${message.sender_id}`)}
+                        className="text-xs font-semibold text-primary-500 mb-1 hover:underline block"
+                      >
+                        {message.sender_name}
+                      </button>
+                    )}
                     <p className="text-sm">{message.message_text}</p>
                     <div className={`text-xs mt-1 ${
                       isFromCurrentUser ? 'text-blue-100' : 'text-gray-500'
