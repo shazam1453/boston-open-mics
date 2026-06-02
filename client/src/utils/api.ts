@@ -366,6 +366,8 @@ export const boardAPI = {
     api.put<any>(`/board/replies/${replyId}`, { body }),
   deleteReply: (replyId: string | number) =>
     api.delete<any>(`/board/replies/${replyId}`),
+  react: (target_type: 'thread' | 'reply', target_id: number, reaction: 'up' | 'down') =>
+    api.post<{ ups: number; downs: number; my_reaction: 'up' | 'down' | null }>('/board/react', { target_type, target_id, reaction }),
 }
 
 export default api

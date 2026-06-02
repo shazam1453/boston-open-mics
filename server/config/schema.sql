@@ -239,3 +239,15 @@ CREATE TABLE IF NOT EXISTS board_replies (
 CREATE INDEX IF NOT EXISTS idx_board_replies_thread ON board_replies(thread_id);
 CREATE INDEX IF NOT EXISTS idx_board_threads_category ON board_threads(category);
 CREATE INDEX IF NOT EXISTS idx_board_threads_last_reply ON board_threads(last_reply_at DESC NULLS LAST);
+
+-- Message board reactions
+CREATE TABLE IF NOT EXISTS board_reactions (
+    id SERIAL PRIMARY KEY,
+    target_type VARCHAR(10) NOT NULL CHECK (target_type IN ('thread', 'reply')),
+    target_id INTEGER NOT NULL,
+    user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+    reaction VARCHAR(5) NOT NULL CHECK (reaction IN ('up', 'down')),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(target_type, target_id, user_id)
+);
+CREATE INDEX IF NOT EXISTS idx_board_reactions_target ON board_reactions(target_type, target_id);

@@ -5,6 +5,33 @@ const { auth, optionalAuth } = require('../middleware/auth');
 
 const CATEGORIES = ['general', 'shows', 'gear', 'intros', 'other'];
 
+// Helper: fetch reaction counts (and current user's reaction) for a set of targets
+async function getReactions(targetType, targetIds, userId) {
+  if (targetIds.length === 0) return {};
+  const counts = await pool.query(`
+    SELECT target_id,
+           COUNT(*) FILTER (WHERE reaction = 'up') as ups,
+           COUNT(*) FILTER (WHERE reaction = 'down') as downs
+    FROM board_reactions WHERE target_type = $1 AND target_id = ANY($2)
+    GROUP BY target_id
+  `, [targetType, targetIds]);
+
+  const map = {};
+  counts.rows.forEach(r => {
+    map[r.target_id] = { ups: parseInt(r.ups), downs: parseInt(r.downs), my_reaction: null };
+  });
+  targetIds.forEach(id => { if (!map[id]) map[id] = { ups: 0, downs: 0, my_reaction: null }; });
+
+  if (userId) {
+    const mine = await pool.query(
+      'SELECT target_id, reaction FROM board_reactions WHERE target_type = $1 AND target_id = ANY($2) AND user_id = $3',
+      [targetType, targetIds, userId]
+    );
+    mine.rows.forEach(r => { if (map[r.target_id]) map[r.target_id].my_reaction = r.reaction; });
+  }
+  return map;
+}
+
 // List threads (optionally filtered by category)
 router.get('/threads', optionalAuth, async (req, res) => {
   const { category } = req.query;
@@ -22,7 +49,10 @@ router.get('/threads', optionalAuth, async (req, res) => {
       ORDER BY t.is_pinned DESC, COALESCE(t.last_reply_at, t.created_at) DESC
       LIMIT 100
     `, params);
-    res.json(result.rows);
+
+    const reactions = await getReactions('thread', result.rows.map(r => r.id), req.user?.id);
+    const threads = result.rows.map(t => ({ ...t, ...reactions[t.id] }));
+    res.json(threads);
   } catch (error) {
     console.error('Board list error:', error);
     res.status(500).json({ message: 'Server error' });
@@ -33,7 +63,7 @@ router.get('/threads', optionalAuth, async (req, res) => {
 router.get('/threads/:id', optionalAuth, async (req, res) => {
   try {
     const threadRes = await pool.query(`
-      SELECT t.*, u.id as author_id, u.name as author_name
+      SELECT t.*, u.id as author_id, u.name as author_name, u.slug as author_slug
       FROM board_threads t
       LEFT JOIN users u ON t.author_id = u.id
       WHERE t.id = $1
@@ -50,9 +80,69 @@ router.get('/threads/:id', optionalAuth, async (req, res) => {
       ORDER BY r.created_at ASC
     `, [req.params.id]);
 
-    res.json({ thread: threadRes.rows[0], replies: repliesRes.rows });
+    const threadId = threadRes.rows[0].id;
+    const replyIds = repliesRes.rows.map(r => r.id);
+    const userId = req.user?.id;
+
+    const [threadReactions, replyReactions] = await Promise.all([
+      getReactions('thread', [threadId], userId),
+      getReactions('reply', replyIds, userId),
+    ]);
+
+    const thread = { ...threadRes.rows[0], ...threadReactions[threadId] };
+    const replies = repliesRes.rows.map(r => ({ ...r, ...replyReactions[r.id] }));
+    res.json({ thread, replies });
   } catch (error) {
     console.error('Board thread error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// Toggle reaction on a thread or reply
+router.post('/react', auth, async (req, res) => {
+  const { target_type, target_id, reaction } = req.body;
+  if (!['thread', 'reply'].includes(target_type)) return res.status(400).json({ message: 'Invalid target_type' });
+  if (!['up', 'down'].includes(reaction)) return res.status(400).json({ message: 'Invalid reaction' });
+
+  try {
+    const existing = await pool.query(
+      'SELECT id, reaction FROM board_reactions WHERE target_type = $1 AND target_id = $2 AND user_id = $3',
+      [target_type, target_id, req.user.id]
+    );
+
+    if (existing.rows.length > 0) {
+      if (existing.rows[0].reaction === reaction) {
+        // Same reaction — remove it (toggle off)
+        await pool.query('DELETE FROM board_reactions WHERE id = $1', [existing.rows[0].id]);
+      } else {
+        // Different reaction — switch it
+        await pool.query('UPDATE board_reactions SET reaction = $1 WHERE id = $2', [reaction, existing.rows[0].id]);
+      }
+    } else {
+      await pool.query(
+        'INSERT INTO board_reactions (target_type, target_id, user_id, reaction) VALUES ($1, $2, $3, $4)',
+        [target_type, target_id, req.user.id, reaction]
+      );
+    }
+
+    const counts = await pool.query(`
+      SELECT COUNT(*) FILTER (WHERE reaction = 'up') as ups,
+             COUNT(*) FILTER (WHERE reaction = 'down') as downs
+      FROM board_reactions WHERE target_type = $1 AND target_id = $2
+    `, [target_type, target_id]);
+
+    const mine = await pool.query(
+      'SELECT reaction FROM board_reactions WHERE target_type = $1 AND target_id = $2 AND user_id = $3',
+      [target_type, target_id, req.user.id]
+    );
+
+    res.json({
+      ups: parseInt(counts.rows[0].ups),
+      downs: parseInt(counts.rows[0].downs),
+      my_reaction: mine.rows[0]?.reaction || null,
+    });
+  } catch (error) {
+    console.error('React error:', error);
     res.status(500).json({ message: 'Server error' });
   }
 });

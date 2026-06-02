@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import { useAuth } from '../hooks/useAuth'
 import { boardAPI } from '../utils/api'
+import ReactionButtons from '../components/ReactionButtons'
 
 function timeAgo(dateStr: string) {
   const diff = Date.now() - new Date(dateStr).getTime()
@@ -212,6 +213,13 @@ export default function ThreadDetail() {
               )}
             </div>
             <PostBody text={thread.body} />
+            <ReactionButtons
+              targetType="thread"
+              targetId={thread.id}
+              ups={thread.ups ?? 0}
+              downs={thread.downs ?? 0}
+              myReaction={thread.my_reaction ?? null}
+            />
           </>
         )}
       </div>
@@ -255,7 +263,16 @@ export default function ThreadDetail() {
                     </div>
                   </div>
                 ) : (
-                  <PostBody text={reply.body} />
+                  <>
+                    <PostBody text={reply.body} />
+                    <ReactionButtons
+                      targetType="reply"
+                      targetId={reply.id}
+                      ups={reply.ups ?? 0}
+                      downs={reply.downs ?? 0}
+                      myReaction={reply.my_reaction ?? null}
+                    />
+                  </>
                 )}
               </div>
             )
